@@ -8,7 +8,7 @@
 
 ## Checklist
 
-- [ ] The PR title follows [Conventional Commits](https://www.conventionalcommits.org) (e.g. `feat: add mDNS discovery`)
+- [ ] The PR title follows [Conventional Commits](https://www.conventionalcommits.org) (e.g. `feat: ✨ add mDNS discovery`; a gitmoji, if any, goes after the type)
 - [ ] `pnpm typecheck` and `pnpm build` pass
 - [ ] `cargo fmt --check`, `cargo clippy -- -D warnings` and `cargo test` pass in `src-tauri/`
 - [ ] User-facing strings go through i18n (no hardcoded copy)

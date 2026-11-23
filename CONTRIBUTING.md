@@ -83,11 +83,12 @@ We use [Conventional Commits](https://www.conventionalcommits.org). Release note
 | `feat!:` / `BREAKING CHANGE:` | a breaking change | major |
 | `docs:`, `chore:`, `refactor:`, `test:`, `ci:`, `build:`, `perf:` | everything else | none |
 
-A leading [gitmoji](https://gitmoji.dev) is welcome but optional:
+A [gitmoji](https://gitmoji.dev) is welcome but optional. It goes **after** the type, never before it: release-please only parses messages that start with the type, and silently skips the rest.
 
 ```
-✨ feat: discover devices over mDNS
-🐛 fix(adb): handle unauthorized device state
+feat: ✨ discover devices over mDNS
+fix(adb): 🐛 handle unauthorized device state
+✨ feat: discover devices over mDNS   ← wrong, ignored by release-please
 ```
 
 Pull requests are squash-merged, so the **PR title** must follow the same format.
