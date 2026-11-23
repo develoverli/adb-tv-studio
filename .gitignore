@@ -1,0 +1,14 @@
+node_modules
+dist
+.cache
+
+# adb sidecar, downloaded by `pnpm fetch-adb`
+src-tauri/binaries/
+
+# Updater signing keys must never be committed
+*.key
+*.key.pub
+
+# Editors / OS
+.DS_Store
+.idea

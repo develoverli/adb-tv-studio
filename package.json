@@ -1,0 +1,41 @@
+{
+  "name": "adb-tv-studio",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Open-source desktop app to discover, connect to and manage Android TV devices over ADB.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/develoverli/adb-tv-studio.git"
+  },
+  "bugs": {
+    "url": "https://github.com/develoverli/adb-tv-studio/issues"
+  },
+  "homepage": "https://github.com/develoverli/adb-tv-studio#readme",
+  "packageManager": "pnpm@11.12.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "serve": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "fetch-adb": "node scripts/fetch-adb.mjs",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "solid-js": "^1.9.3",
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-opener": "^2",
+    "@tauri-apps/plugin-process": "^2",
+    "@tauri-apps/plugin-updater": "^2"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.3",
+    "vite": "^8.0.16",
+    "vite-plugin-solid": "^2.11.12",
+    "@tauri-apps/cli": "^2"
+  }
+}

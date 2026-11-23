@@ -1,0 +1,60 @@
+name: Bug report
+description: Something does not work as expected
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Please search [existing issues](https://github.com/develoverli/adb-tv-studio/issues) first.
+        Security problems go through [SECURITY.md](https://github.com/develoverli/adb-tv-studio/blob/main/SECURITY.md), not here.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the app
+        2. Click "Scan"
+        3. ...
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: adb-tv-studio version
+      placeholder: "0.1.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows
+        - macOS
+        - Linux
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: TV / device model and Android version
+      placeholder: "Chromecast with Google TV, Android 14"
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Any error message or log output. Remove IPs or other private data if needed.
+      render: shell
