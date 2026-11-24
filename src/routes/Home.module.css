@@ -1,0 +1,4 @@
+.mark {
+  color: var(--text);
+  margin-bottom: var(--space-3);
+}

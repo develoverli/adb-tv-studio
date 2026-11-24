@@ -1,0 +1,49 @@
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-5);
+  max-width: 460px;
+  padding: var(--space-12) 0;
+}
+
+.icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.icon svg {
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+  stroke-width: 1.5;
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.badge {
+  margin-bottom: var(--space-1);
+}
+
+.title {
+  font-size: var(--text-xl);
+}
+
+.body {
+  color: var(--text-secondary);
+  max-width: 60ch;
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-3);
+}

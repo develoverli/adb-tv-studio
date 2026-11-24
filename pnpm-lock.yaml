@@ -8,6 +8,15 @@ importers:
 
   .:
     dependencies:
+      '@fontsource-variable/outfit':
+        specifier: ^5.3.0
+        version: 5.3.0
+      '@solid-primitives/i18n':
+        specifier: ^2.2.1
+        version: 2.2.1(solid-js@1.9.20)
+      '@solidjs/router':
+        specifier: ^1.0.3
+        version: 1.0.3(solid-js@1.9.20)
       '@tauri-apps/api':
         specifier: ^2
         version: 2.12.5
@@ -20,6 +29,9 @@ importers:
       '@tauri-apps/plugin-updater':
         specifier: ^2
         version: 2.14.1
+      lucide-solid:
+        specifier: ^1.77.0
+        version: 1.77.0(solid-js@1.9.20)
       solid-js:
         specifier: ^1.9.3
         version: 1.9.20
@@ -128,6 +140,9 @@ packages:
 
   '@emnapi/wasi-threads@2.2.0':
     resolution: {integrity: sha512-JP7OYH38Q7+pyTAe14raZHLQIK7BDKbdwji+Xi3pcd/6QkJYQH3SX4wu6EplGrGJWRepoNzedfm0G3B9Z4e9Rw==}
+
+  '@fontsource-variable/outfit@5.3.0':
+    resolution: {integrity: sha512-fPb5XnYK0k7SbR++HEmm4+ZqDszmLKQ+sPRUr8oQ/KNC0vy6r6hazJFe8iYozv4cqlHbvJ/JECkJWrfDodUMVQ==}
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -258,6 +273,16 @@ packages:
 
   '@rolldown/pluginutils@1.1.1':
     resolution: {integrity: sha512-glFIJDvLNDtJhT9qrMFWLPbvS+skxgt4L0K8Ei2YtnhPysAJnsI7nyxSJxKj4ADeKX0OLjC4ntRkwpLOoS3rwA==}
+
+  '@solid-primitives/i18n@2.2.1':
+    resolution: {integrity: sha512-TnTnE2Ku11MGYZ1JzhJ8pYscwg1fr9MteoYxPwsfxWfh9Jp5K7RRJncJn9BhOHvNLwROjqOHZ46PT7sPHqbcXw==}
+    peerDependencies:
+      solid-js: ^1.6.12
+
+  '@solidjs/router@1.0.3':
+    resolution: {integrity: sha512-EULOxZNMGISNgQU+uXLtt6o4X5bIE+0HiPW0gGSOyl3HJmyClSDDHLGJ5JTHkbiyUSc6DttVvnVZYfK1a+70BA==}
+    peerDependencies:
+      solid-js: ^1.8.6
 
   '@tauri-apps/api@2.12.5':
     resolution: {integrity: sha512-G9QIMt5fzED+aS4QhVK3w1HWLKpLIwH/MnpCr9z1ugGEHnS2ORmqrLkc0uALOjRK4qXJy+4Yiw8LDl/KicC1Hg==}
@@ -534,6 +559,11 @@ packages:
   lru-cache@5.1.1:
     resolution: {integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==}
 
+  lucide-solid@1.77.0:
+    resolution: {integrity: sha512-VHbTICLAwYdSbhlLJp1mEfOS1gjWL8MEXyGbqgh4oFd/si6RTBCM4B8B8D3T5ag2fDUJtUr2xEVJq4zdFSt0og==}
+    peerDependencies:
+      solid-js: ^1.4.7
+
   merge-anything@5.1.7:
     resolution: {integrity: sha512-eRtbOb1N5iyH0tkQDAoQ4Ipsp/5qSR79Dzrz8hEPxRX10RWWR/iQXdoKmBSRCThY1Fh5EhISDtpSc93fpxUniQ==}
     engines: {node: '>=12.13'}
@@ -806,6 +836,8 @@ snapshots:
       tslib: 2.9.1
     optional: true
 
+  '@fontsource-variable/outfit@5.3.0': {}
+
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
       '@jridgewell/sourcemap-codec': 1.6.0
@@ -887,6 +919,14 @@ snapshots:
     optional: true
 
   '@rolldown/pluginutils@1.1.1': {}
+
+  '@solid-primitives/i18n@2.2.1(solid-js@1.9.20)':
+    dependencies:
+      solid-js: 1.9.20
+
+  '@solidjs/router@1.0.3(solid-js@1.9.20)':
+    dependencies:
+      solid-js: 1.9.20
 
   '@tauri-apps/api@2.12.5': {}
 
@@ -1090,6 +1130,10 @@ snapshots:
   lru-cache@5.1.1:
     dependencies:
       yallist: 3.1.1
+
+  lucide-solid@1.77.0(solid-js@1.9.20):
+    dependencies:
+      solid-js: 1.9.20
 
   merge-anything@5.1.7:
     dependencies:

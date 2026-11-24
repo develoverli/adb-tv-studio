@@ -32,6 +32,12 @@ pnpm tauri dev      # runs the app with hot reload
 
 `pnpm fetch-adb` must run once before the first Rust build: `tauri-build` refuses to compile if the `adb` sidecar is missing.
 
+The TV list comes from the bundled adb (its own server on port 5038, so it does not clash with another adb on 5037). To design screens without a TV, load two sample TVs (`src/dev/mockDevices.ts`) instead. They are never part of a release build:
+
+```bash
+VITE_MOCK=1 pnpm tauri dev
+```
+
 ### Local release builds
 
 Release bundles are signed for the auto-updater. Without the signing key, build an unbundled binary instead:

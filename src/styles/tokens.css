@@ -1,0 +1,151 @@
+/*
+ * Design tokens. Two layers:
+ *   - primitives: raw OKLCH values (hue 160 = signal green family)
+ *   - semantic: what components use. Only the semantic layer changes per theme.
+ * Dark is the default; [data-theme="light"] is set on <html> by src/lib/theme.ts.
+ */
+
+:root {
+  /* ---- Primitives: neutrals tinted toward hue 160 ---- */
+  --n-50: oklch(0.985 0.004 160);
+  --n-75: oklch(0.97 0.005 160);
+  --n-100: oklch(0.955 0.006 160);
+  --n-150: oklch(0.93 0.008 160);
+  --n-200: oklch(0.885 0.009 160);
+  --n-300: oklch(0.8 0.01 160);
+  --n-400: oklch(0.66 0.012 160);
+  --n-500: oklch(0.52 0.012 160);
+  --n-600: oklch(0.42 0.012 160);
+  --n-700: oklch(0.32 0.011 160);
+  --n-750: oklch(0.255 0.009 160);
+  --n-800: oklch(0.215 0.008 160);
+  --n-850: oklch(0.185 0.007 160);
+  --n-900: oklch(0.155 0.006 160);
+  --n-950: oklch(0.22 0.01 160);
+
+  /* ---- Primitives: accent (#3DDC97) and semantic hues ---- */
+  --green-400: oklch(0.85 0.15 160);
+  --green-500: oklch(0.8 0.16 160);
+  --green-600: oklch(0.68 0.16 160);
+  --green-800: oklch(0.5 0.12 160);
+  --green-ink: oklch(0.2 0.035 160);
+  --red-400: oklch(0.72 0.17 25);
+  --red-600: oklch(0.55 0.19 25);
+  --amber-400: oklch(0.83 0.14 80);
+  --amber-700: oklch(0.55 0.12 70);
+  --blue-400: oklch(0.76 0.11 240);
+  --blue-700: oklch(0.5 0.13 250);
+
+  /* ---- Semantic: dark (default) ---- */
+  color-scheme: dark;
+  --bg: var(--n-900);
+  --surface-sidebar: var(--n-850);
+  --surface-raised: var(--n-800);
+  --surface-hover: var(--n-750);
+  --surface-active: var(--n-700);
+  --border: oklch(0.29 0.01 160);
+  --border-strong: oklch(0.38 0.012 160);
+
+  --text: oklch(0.96 0.005 160);
+  --text-secondary: var(--n-300);
+  --text-tertiary: var(--n-400);
+  --text-disabled: oklch(0.5 0.01 160);
+
+  --accent: var(--green-500);
+  --accent-hover: var(--green-400);
+  --accent-text: var(--green-500);
+  --on-accent: var(--green-ink);
+  --accent-soft: oklch(0.8 0.16 160 / 0.14);
+  --focus-ring: oklch(0.8 0.16 160 / 0.7);
+
+  --danger: var(--red-400);
+  --danger-solid: var(--red-600);
+  --warning: var(--amber-400);
+  --info: var(--blue-400);
+
+  --window-close-hover: oklch(0.58 0.2 25);
+  --shadow-raised: none;
+
+  /* ---- Typography ---- */
+  --font-sans: "Outfit Variable", "Outfit", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-md: 0.875rem;
+  --text-lg: 1.0625rem;
+  --text-xl: 1.3125rem;
+  --text-2xl: 1.625rem;
+  --text-3xl: 2rem;
+  --weight-body: 380;
+  --weight-medium: 500;
+  --weight-strong: 600;
+  --tracking-caps: 0.08em;
+
+  /* ---- Space, shape, size ---- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-full: 999px;
+  --titlebar-height: 40px;
+  --sidebar-width: 248px;
+  --icon-sm: 16px;
+  --icon-md: 18px;
+  --icon-lg: 24px;
+
+  /* ---- Motion ---- */
+  --ease-out: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fast: 120ms;
+  --dur: 180ms;
+  --dur-slow: 260ms;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: var(--n-50);
+  --surface-sidebar: var(--n-100);
+  --surface-raised: oklch(0.995 0.003 160);
+  --surface-hover: var(--n-150);
+  --surface-active: var(--n-200);
+  --border: var(--n-200);
+  --border-strong: var(--n-300);
+
+  --text: var(--n-950);
+  --text-secondary: var(--n-600);
+  --text-tertiary: var(--n-500);
+  --text-disabled: var(--n-400);
+
+  --accent: var(--green-500);
+  --accent-hover: var(--green-600);
+  --accent-text: var(--green-800);
+  --on-accent: var(--green-ink);
+  --accent-soft: oklch(0.68 0.16 160 / 0.14);
+  --focus-ring: oklch(0.6 0.15 160 / 0.6);
+
+  --danger: var(--red-600);
+  --danger-solid: var(--red-600);
+  --warning: var(--amber-700);
+  --info: var(--blue-700);
+
+  --weight-body: 400;
+  --shadow-raised: 0 1px 2px oklch(0.22 0.01 160 / 0.06), 0 4px 16px oklch(0.22 0.01 160 / 0.05);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0ms;
+    --dur: 0ms;
+    --dur-slow: 0ms;
+  }
+}

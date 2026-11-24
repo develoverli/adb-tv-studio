@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- App icon source. Regenerate platform icons with: pnpm tauri icon assets/app-icon.svg -->
+  <rect width="1024" height="1024" rx="230" fill="#0E1411"/>
+  <rect x="196" y="262" width="632" height="430" rx="84" fill="none" stroke="#EDF4F0" stroke-width="58"/>
+  <path d="M404 788H620" stroke="#EDF4F0" stroke-width="58" stroke-linecap="round"/>
+  <circle cx="318" cy="574" r="34" fill="#3DDC97"/>
+  <path d="M318 456A118 118 0 0 1 436 574" fill="none" stroke="#3DDC97" stroke-width="50" stroke-linecap="round"/>
+  <path d="M318 368A206 206 0 0 1 524 574" fill="none" stroke="#3DDC97" stroke-width="50" stroke-linecap="round"/>
+</svg>

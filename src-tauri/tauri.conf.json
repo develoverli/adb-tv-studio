@@ -12,11 +12,13 @@
   "app": {
     "windows": [
       {
-        "title": "adb-tv-studio",
+        "title": "ADB TV Studio",
         "width": 1100,
         "height": 720,
         "minWidth": 800,
-        "minHeight": 560
+        "minHeight": 560,
+        "decorations": false,
+        "backgroundColor": "#0E110F"
       }
     ],
     "security": {

@@ -1,0 +1,42 @@
+.controls {
+  display: flex;
+  height: var(--titlebar-height);
+}
+
+.control {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  transition:
+    background-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
+}
+
+.control svg {
+  width: 15px;
+  height: 15px;
+  stroke-width: 1.5;
+}
+
+.control .restore {
+  transform: scaleX(-1);
+}
+
+.control:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.close:hover {
+  background: var(--window-close-hover);
+  color: oklch(0.98 0.005 25);
+}
+
+.control:focus-visible {
+  outline-offset: -2px;
+}
