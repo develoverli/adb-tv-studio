@@ -116,7 +116,10 @@ mod tests {
 
     #[test]
     fn hosts_to_probe_should_skip_link_local() {
-        assert!(hosts_to_probe(&[(Ipv4Addr::new(169, 254, 3, 4), 16)]).is_empty());
+        assert_eq!(
+            hosts_to_probe(&[(Ipv4Addr::new(169, 254, 3, 4), 16)]),
+            Vec::<Ipv4Addr>::new()
+        );
     }
 
     #[test]

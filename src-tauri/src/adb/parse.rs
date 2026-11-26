@@ -337,7 +337,10 @@ adb-1A2B-xYz\t_adb-tls-pairing._tcp.\t192.168.1.50:41234\n";
 
     #[test]
     fn mdns_services_should_ignore_other_services() {
-        assert!(mdns_services("adb-1A2B\t_adb._tcp\t192.168.1.50:5555\n").is_empty());
+        assert_eq!(
+            mdns_services("adb-1A2B\t_adb._tcp\t192.168.1.50:5555\n"),
+            Vec::<MdnsService>::new()
+        );
     }
 
     #[test]
