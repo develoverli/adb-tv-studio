@@ -1,6 +1,4 @@
 import { useParams } from "@solidjs/router";
-import LayoutGrid from "lucide-solid/icons/layout-grid";
-import Package from "lucide-solid/icons/package";
 import Palette from "lucide-solid/icons/palette";
 import { Show } from "solid-js";
 import { EmptyState } from "../../components/EmptyState";
@@ -43,28 +41,6 @@ export function Overview() {
         </section>
       )}
     </Show>
-  );
-}
-
-export function Apps() {
-  return (
-    <EmptyState
-      icon={<LayoutGrid />}
-      badge={<InDevelopment />}
-      title={t("sections.appsTitle")}
-      body={t("sections.appsBody")}
-    />
-  );
-}
-
-export function Install() {
-  return (
-    <EmptyState
-      icon={<Package />}
-      badge={<InDevelopment />}
-      title={t("sections.installTitle")}
-      body={t("sections.installBody")}
-    />
   );
 }
 

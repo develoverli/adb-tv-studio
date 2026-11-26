@@ -1,0 +1,311 @@
+import { useParams } from "@solidjs/router";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
+import CircleCheck from "lucide-solid/icons/circle-check";
+import FolderOpen from "lucide-solid/icons/folder-open";
+import LoaderCircle from "lucide-solid/icons/loader-circle";
+import Package from "lucide-solid/icons/package";
+import PackagePlus from "lucide-solid/icons/package-plus";
+import Play from "lucide-solid/icons/play";
+import TriangleAlert from "lucide-solid/icons/triangle-exclamation-point";
+import X from "lucide-solid/icons/x";
+import { For, Show, createSignal, onCleanup, onMount } from "solid-js";
+import { Button } from "../../components/Button";
+import { confirmAction } from "../../components/ConfirmDialog";
+import { Pill } from "../../components/Pill";
+import { t } from "../../i18n";
+import { describeError } from "../../lib/adb";
+import { findDevice } from "../../lib/devices";
+import {
+  type InstallPreview,
+  describeInstallError,
+  fileIcon,
+  formatSize,
+  inspectFile,
+  installFile,
+  isInstallable,
+  openPackage,
+  pickFiles,
+} from "../../lib/install";
+import styles from "./Install.module.css";
+
+type Status = "inspecting" | "ready" | "installing" | "installed" | "error";
+
+interface QueueItem {
+  path: string;
+  status: Status;
+  preview: InstallPreview | null;
+  icon: string | null;
+  message: string | null;
+}
+
+function fileNameOf(path: string): string {
+  return path.split(/[\\/]/).pop() ?? path;
+}
+
+function kindLabel(preview: InstallPreview): string {
+  switch (preview.kind) {
+    case "new":
+      return t("install.kind.new");
+    case "update":
+      return t("install.kind.update", {
+        from: preview.installedVersionName ?? "?",
+        to: preview.versionName ?? "?",
+      });
+    case "same":
+      return t("install.kind.same");
+    case "downgrade":
+      return t("install.kind.downgrade", { installed: preview.installedVersionName ?? "?" });
+    case "replace":
+      return t("install.kind.replace");
+  }
+}
+
+export function Install() {
+  const params = useParams<{ id: string }>();
+  const serial = () => params.id;
+  const connected = () => findDevice(serial())?.status === "connected";
+
+  const [queue, setQueue] = createSignal<QueueItem[]>([]);
+  const [dragging, setDragging] = createSignal(false);
+  const [rejected, setRejected] = createSignal(false);
+  const [error, setError] = createSignal<string | null>(null);
+  let installingAll = false;
+
+  const update = (path: string, change: Partial<QueueItem>) => {
+    setQueue((items) => items.map((item) => (item.path === path ? { ...item, ...change } : item)));
+  };
+
+  onCleanup(() => {
+    for (const item of queue()) if (item.icon) URL.revokeObjectURL(item.icon);
+  });
+
+  const addFiles = async (paths: string[]) => {
+    const accepted = paths.filter(isInstallable);
+    setRejected(accepted.length < paths.length);
+    const known = new Set(queue().map((item) => item.path));
+    const fresh = accepted.filter((path) => !known.has(path));
+    setQueue((items) => [
+      ...items,
+      ...fresh.map((path): QueueItem => ({ path, status: "inspecting", preview: null, icon: null, message: null })),
+    ]);
+    for (const path of fresh) {
+      try {
+        const preview = await inspectFile(serial(), path);
+        let icon: string | null = null;
+        if (preview.hasIcon) {
+          try {
+            icon = URL.createObjectURL(new Blob([await fileIcon(path)]));
+          } catch {
+            // Keep the generic icon.
+          }
+        }
+        update(path, { status: "ready", preview, icon });
+      } catch (failure) {
+        update(path, { status: "error", message: describeError(failure) });
+      }
+    }
+  };
+
+  const remove = (path: string) => {
+    const item = queue().find((entry) => entry.path === path);
+    if (item?.icon) URL.revokeObjectURL(item.icon);
+    setQueue((items) => items.filter((entry) => entry.path !== path));
+  };
+
+  /** Installs one file; returns false when the user cancelled a downgrade. */
+  const install = async (item: QueueItem): Promise<boolean> => {
+    const preview = item.preview;
+    if (!preview || !preview.compatible) return true;
+    const downgrade = preview.kind === "downgrade";
+    if (downgrade) {
+      const confirmed = await confirmAction({
+        title: t("install.confirmDowngradeTitle", { name: preview.label ?? preview.package }),
+        body: t("install.confirmDowngradeBody", {
+          installed: preview.installedVersionName ?? "?",
+          file: preview.versionName ?? "?",
+        }),
+        confirmLabel: t("install.installOlder"),
+        danger: true,
+      });
+      if (!confirmed) return false;
+    }
+    update(item.path, { status: "installing", message: null });
+    try {
+      await installFile(serial(), item.path, downgrade);
+      update(item.path, { status: "installed" });
+    } catch (failure) {
+      update(item.path, { status: "error", message: describeInstallError(failure) });
+    }
+    return true;
+  };
+
+  const installAll = async () => {
+    if (installingAll) return;
+    installingAll = true;
+    try {
+      for (const item of queue()) {
+        const current = queue().find((entry) => entry.path === item.path);
+        if (current?.status === "ready" && current.preview?.compatible) await install(current);
+      }
+    } finally {
+      installingAll = false;
+    }
+  };
+
+  const choose = async () => {
+    setError(null);
+    try {
+      await addFiles(await pickFiles());
+    } catch (failure) {
+      setError(describeError(failure));
+    }
+  };
+
+  onMount(() => {
+    const unlisten = getCurrentWebview().onDragDropEvent((event) => {
+      const payload = event.payload;
+      if (payload.type === "enter" || payload.type === "over") setDragging(true);
+      else if (payload.type === "leave") setDragging(false);
+      else {
+        setDragging(false);
+        if (connected()) void addFiles(payload.paths);
+      }
+    });
+    onCleanup(() => {
+      void unlisten.then((stop) => stop());
+    });
+  });
+
+  const readyCount = () => queue().filter((item) => item.status === "ready" && item.preview?.compatible).length;
+  const busy = () => queue().some((item) => item.status === "installing");
+
+  return (
+    <section class={styles.install}>
+      <div class={styles.dropzone} classList={{ [styles.dragging]: dragging() }}>
+        <PackagePlus class={styles.dropIcon} aria-hidden="true" />
+        <p class={styles.dropTitle}>{dragging() ? t("install.dropNow") : t("install.dropTitle")}</p>
+        <p class={styles.dropHint}>{t("install.dropHint")}</p>
+        <Button variant="primary" onClick={choose} disabled={!connected()}>
+          <FolderOpen />
+          {t("install.choose")}
+        </Button>
+        <Show when={!connected()}>
+          <p class={styles.dropHint}>{t("install.notConnected")}</p>
+        </Show>
+      </div>
+
+      <Show when={rejected()}>
+        <p class={styles.warning} role="status">
+          {t("install.rejected")}
+        </p>
+      </Show>
+      <p class={styles.error} role="alert">
+        {error()}
+      </p>
+
+      <Show when={queue().length > 0}>
+        <div class={styles.queueHeader}>
+          <h2 class={styles.heading}>{t("install.queue")}</h2>
+          <Show when={readyCount() > 1}>
+            <Button variant="secondary" onClick={installAll} disabled={busy() || !connected()}>
+              {t("install.installAll", { count: String(readyCount()) })}
+            </Button>
+          </Show>
+        </div>
+        <ul class={styles.queue}>
+          <For each={queue()}>
+            {(item) => (
+              <li class={styles.item}>
+                <span class={styles.art}>
+                  <Show when={item.icon} fallback={<Package class={styles.genericIcon} />}>
+                    {(url) => <img src={url()} alt="" class={styles.artImage} draggable={false} decoding="async" />}
+                  </Show>
+                </span>
+                <div class={styles.itemText}>
+                  <p class={styles.itemName}>{item.preview?.label ?? fileNameOf(item.path)}</p>
+                  <p class={styles.itemMeta}>
+                    <Show when={item.preview} fallback={<span>{t("install.reading")}</span>}>
+                      {(preview) => (
+                        <>
+                          <span>{preview().versionName ?? preview().package}</span>
+                          <span aria-hidden="true">·</span>
+                          <span>{formatSize(preview().sizeBytes)}</span>
+                          <Show when={preview().split}>
+                            <Pill>{t("install.split")}</Pill>
+                          </Show>
+                        </>
+                      )}
+                    </Show>
+                  </p>
+                  <Show when={item.preview}>
+                    {(preview) => (
+                      <p class={styles.kind} classList={{ [styles.kindWarning]: preview().kind === "downgrade" }}>
+                        {kindLabel(preview())}
+                      </p>
+                    )}
+                  </Show>
+                  <Show when={item.preview && !item.preview.compatible}>
+                    <p class={styles.warning}>
+                      <TriangleAlert aria-hidden="true" />
+                      {t("install.incompatible", {
+                        min: String(item.preview?.minSdk ?? "?"),
+                        device: String(item.preview?.deviceSdk ?? "?"),
+                      })}
+                    </p>
+                  </Show>
+                  <Show when={item.message}>
+                    <p class={styles.error}>{item.message}</p>
+                  </Show>
+                </div>
+                <div class={styles.itemActions}>
+                  <Show when={item.status === "inspecting"}>
+                    <LoaderCircle class={styles.spin} aria-label={t("install.reading")} />
+                  </Show>
+                  <Show when={item.status === "ready"}>
+                    <Button
+                      variant="primary"
+                      onClick={() => void install(item)}
+                      disabled={!item.preview?.compatible || busy() || !connected()}
+                    >
+                      {t("install.install")}
+                    </Button>
+                  </Show>
+                  <Show when={item.status === "installing"}>
+                    <span class={styles.status} role="status">
+                      <LoaderCircle class={styles.spin} />
+                      {t("install.installing")}
+                    </span>
+                  </Show>
+                  <Show when={item.status === "installed"}>
+                    <span class={`${styles.status} ${styles.success}`} role="status">
+                      <CircleCheck />
+                      {t("install.installed")}
+                    </span>
+                    <Show when={item.preview}>
+                      {(preview) => (
+                        <Button variant="secondary" onClick={() => void openPackage(serial(), preview().package)}>
+                          <Play />
+                          {t("apps.open")}
+                        </Button>
+                      )}
+                    </Show>
+                  </Show>
+                  <Show when={item.status === "error" && item.preview}>
+                    <Button variant="secondary" onClick={() => void install(item)} disabled={busy() || !connected()}>
+                      {t("install.retry")}
+                    </Button>
+                  </Show>
+                  <Show when={item.status !== "installing"}>
+                    <Button variant="ghost" onClick={() => remove(item.path)} aria-label={t("install.remove")}>
+                      <X />
+                    </Button>
+                  </Show>
+                </div>
+              </li>
+            )}
+          </For>
+        </ul>
+      </Show>
+    </section>
+  );
+}

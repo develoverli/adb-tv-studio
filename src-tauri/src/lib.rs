@@ -33,6 +33,14 @@ pub fn run() -> tauri::Result<()> {
             adb::remote::remote_tap,
             adb::screen::screen_capture,
             adb::screen::screen_save,
+            adb::apps::apps_list,
+            adb::apps::apps_details,
+            adb::apps::apps_icon,
+            adb::apps::apps_action,
+            adb::install::install_pick,
+            adb::install::install_inspect,
+            adb::install::install_icon,
+            adb::install::install_run,
         ])
         .build(tauri::generate_context!())?;
 

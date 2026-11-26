@@ -1,0 +1,82 @@
+.dialog {
+  width: min(440px, calc(100vw - 32px));
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  color: var(--text);
+  box-shadow: var(--shadow-raised);
+}
+
+.dialog::backdrop {
+  background: oklch(0.1 0.01 160 / 0.55);
+}
+
+.dialog[open] {
+  animation: dialog-in var(--dur-slow) var(--ease-out);
+}
+
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-6);
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  margin-bottom: var(--space-2);
+  border-radius: var(--radius-md);
+  background: var(--surface-hover);
+  color: var(--danger);
+}
+
+.icon svg {
+  width: var(--icon-md);
+  height: var(--icon-md);
+}
+
+.title {
+  font-size: var(--text-xl);
+}
+
+.body {
+  color: var(--text-secondary);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.danger {
+  background: var(--danger-solid);
+  color: oklch(0.98 0.005 25);
+}
+
+.danger:hover:not(:disabled) {
+  background: var(--danger);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialog[open] {
+    animation: none;
+  }
+}

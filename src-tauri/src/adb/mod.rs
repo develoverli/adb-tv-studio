@@ -1,8 +1,12 @@
 //! ADB integration. Every call goes through the bundled `adb` sidecar, started by Rust only;
 //! the webview gets the `adb_*`, `remote_*` and `screen_*` commands and never a shell permission.
 
+pub mod apps;
+mod apps_parse;
 pub mod commands;
 mod error;
+pub mod install;
+mod install_parse;
 mod parse;
 pub mod remote;
 mod scan;
@@ -168,6 +172,7 @@ pub fn init(app: &AppHandle) {
     app.manage(AdbState::default());
     app.manage(remote::RemoteState::default());
     app.manage(screen::ScreenState::default());
+    app.manage(install::InstallState::default());
     tracker::start(app.clone());
 }
 

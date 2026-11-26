@@ -19,6 +19,12 @@ pub enum AdbError {
     UnknownDevice(String),
     /// Text for the TV is empty, too long or not printable ASCII (`input text` cannot type it).
     InvalidText,
+    /// Not a valid Android package name.
+    InvalidPackage(String),
+    /// Reading the app's APK (pull or parse) failed.
+    ApkRead(String),
+    /// `adb install` failed; carries Android's code, e.g. `INSTALL_FAILED_VERSION_DOWNGRADE`.
+    InstallFailed(String),
     /// There is no screen capture yet to save.
     NoCapture,
     /// Writing the saved capture to disk failed.
@@ -37,6 +43,9 @@ impl fmt::Display for AdbError {
             Self::PairFailed(message) => write!(formatter, "pairing failed: {message}"),
             Self::UnknownDevice(serial) => write!(formatter, "unknown device: {serial}"),
             Self::InvalidText => write!(formatter, "text must be printable ASCII"),
+            Self::InvalidPackage(package) => write!(formatter, "invalid package name: {package}"),
+            Self::ApkRead(message) => write!(formatter, "could not read the APK: {message}"),
+            Self::InstallFailed(code) => write!(formatter, "install failed: {code}"),
             Self::NoCapture => write!(formatter, "no screen capture to save"),
             Self::Save(message) => write!(formatter, "could not save the capture: {message}"),
             Self::Command(message) => write!(formatter, "adb failed: {message}"),

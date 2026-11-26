@@ -2,6 +2,7 @@ import type { RouteSectionProps } from "@solidjs/router";
 import { Show } from "solid-js";
 import { isMac } from "../lib/platform";
 import styles from "./AppShell.module.css";
+import { ConfirmHost } from "./ConfirmDialog";
 import { Sidebar } from "./Sidebar";
 import { WindowControls } from "./WindowControls";
 
@@ -18,6 +19,7 @@ export function AppShell(props: RouteSectionProps) {
         </header>
         <main class={styles.content}>{props.children}</main>
       </div>
+      <ConfirmHost />
     </div>
   );
 }
