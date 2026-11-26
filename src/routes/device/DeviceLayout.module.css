@@ -110,6 +110,11 @@
   flex: none;
 }
 
+.actionButtons {
+  display: flex;
+  gap: var(--space-2);
+}
+
 .actionError {
   max-width: 32ch;
   color: var(--danger);

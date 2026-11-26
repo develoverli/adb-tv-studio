@@ -35,6 +35,9 @@ export const ADB_ERROR_KINDS = [
   "connectFailed",
   "pairFailed",
   "unknownDevice",
+  "invalidText",
+  "noCapture",
+  "save",
   "command",
 ] as const;
 
@@ -75,6 +78,11 @@ export function connect(address: string): Promise<ConnectStatus> {
 
 export function pair(address: string, code: string): Promise<PairResult> {
   return invoke<PairResult>("adb_pair", { address, code });
+}
+
+/** Drops a stuck (offline) connection and connects again to the same address. */
+export function reconnect(serial: string): Promise<ConnectStatus> {
+  return invoke<ConnectStatus>("adb_reconnect", { serial });
 }
 
 export function disconnect(serial: string): Promise<void> {

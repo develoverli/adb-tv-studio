@@ -17,6 +17,12 @@ pub enum AdbError {
     PairFailed(String),
     /// The TV is not in the current device list.
     UnknownDevice(String),
+    /// Text for the TV is empty, too long or not printable ASCII (`input text` cannot type it).
+    InvalidText,
+    /// There is no screen capture yet to save.
+    NoCapture,
+    /// Writing the saved capture to disk failed.
+    Save(String),
     /// Any other adb command failure.
     Command(String),
 }
@@ -30,6 +36,9 @@ impl fmt::Display for AdbError {
             Self::ConnectFailed(message) => write!(formatter, "connect failed: {message}"),
             Self::PairFailed(message) => write!(formatter, "pairing failed: {message}"),
             Self::UnknownDevice(serial) => write!(formatter, "unknown device: {serial}"),
+            Self::InvalidText => write!(formatter, "text must be printable ASCII"),
+            Self::NoCapture => write!(formatter, "no screen capture to save"),
+            Self::Save(message) => write!(formatter, "could not save the capture: {message}"),
             Self::Command(message) => write!(formatter, "adb failed: {message}"),
         }
     }

@@ -28,6 +28,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri-plugin-shell = "2"
 if-addrs = "0.15.0"
+tauri-plugin-dialog = "2"
 
 [lints.rust]
 future-incompatible = { level = "warn", priority = -1 }

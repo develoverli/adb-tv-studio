@@ -1,10 +1,12 @@
 //! ADB integration. Every call goes through the bundled `adb` sidecar, started by Rust only;
-//! the webview gets the `adb_*` commands below and never a shell permission.
+//! the webview gets the `adb_*`, `remote_*` and `screen_*` commands and never a shell permission.
 
 pub mod commands;
 mod error;
 mod parse;
+pub mod remote;
 mod scan;
+pub mod screen;
 mod tracker;
 
 pub use error::AdbError;
@@ -16,7 +18,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 use tauri::{AppHandle, Manager};
 use tauri_plugin_shell::ShellExt;
-use tauri_plugin_shell::process::Command;
+use tauri_plugin_shell::process::{Command, CommandEvent};
 
 /// Name of the sidecar in `bundle.externalBin` (`binaries/adb-<target-triple>`).
 const SIDECAR: &str = "adb";
@@ -76,6 +78,16 @@ impl AdbState {
     fn is_shutting_down(&self) -> bool {
         self.shutting_down.load(Ordering::Relaxed)
     }
+
+    /// Fails with `UnknownDevice` unless `serial` is in the current list, so commands only
+    /// ever target TVs adb already reports.
+    fn require_device(&self, serial: &str) -> Result<(), AdbError> {
+        if self.devices().iter().any(|device| device.id == serial) {
+            Ok(())
+        } else {
+            Err(AdbError::UnknownDevice(serial.to_owned()))
+        }
+    }
 }
 
 /// Output of a finished adb command, decoded as text.
@@ -98,29 +110,64 @@ fn sidecar(app: &AppHandle) -> Result<Command, AdbError> {
         .sidecar(SIDECAR)
         .map(|command| {
             command
-                .env("ADB_SERVER_PORT", SERVER_PORT)
+                .env("ANDROID_ADB_SERVER_PORT", SERVER_PORT)
                 .env("ADB_MDNS_AUTO_CONNECT", MDNS_AUTO_CONNECT)
         })
         .map_err(|error| AdbError::Spawn(error.to_string()))
 }
 
-/// Runs adb to completion.
-async fn run(app: &AppHandle, args: &[&str]) -> Result<CommandOutput, AdbError> {
-    let output = sidecar(app)?
+/// Output of a finished adb command with stdout kept as bytes (binary output such as PNG).
+struct RawOutput {
+    success: bool,
+    stdout: Vec<u8>,
+    stderr: String,
+}
+
+/// Runs adb to completion, keeping stdout as raw bytes.
+///
+/// Not `Command::output()`: it reads line by line, drops each CRLF/LF and appends a bare LF,
+/// which corrupts binary output (the PNG signature itself contains CRLF). Raw mode passes the
+/// bytes through untouched.
+async fn run_raw(app: &AppHandle, args: &[&str]) -> Result<RawOutput, AdbError> {
+    let (mut events, _child) = sidecar(app)?
         .args(args)
-        .output()
-        .await
+        .set_raw_out(true)
+        .spawn()
         .map_err(|error| AdbError::Spawn(error.to_string()))?;
+    let mut stdout = Vec::new();
+    let mut stderr = Vec::new();
+    let mut code = None;
+    while let Some(event) = events.recv().await {
+        match event {
+            CommandEvent::Stdout(bytes) => stdout.extend(bytes),
+            CommandEvent::Stderr(bytes) => stderr.extend(bytes),
+            CommandEvent::Terminated(payload) => code = payload.code,
+            CommandEvent::Error(message) => return Err(AdbError::Command(message)),
+            _ => {}
+        }
+    }
+    Ok(RawOutput {
+        success: code == Some(0),
+        stdout,
+        stderr: String::from_utf8_lossy(&stderr).into_owned(),
+    })
+}
+
+/// Runs adb to completion, decoding its output as text.
+async fn run(app: &AppHandle, args: &[&str]) -> Result<CommandOutput, AdbError> {
+    let output = run_raw(app, args).await?;
     Ok(CommandOutput {
-        success: output.status.success(),
+        success: output.success,
         stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
-        stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+        stderr: output.stderr,
     })
 }
 
 /// Registers the state and starts watching devices. Call from `setup`.
 pub fn init(app: &AppHandle) {
     app.manage(AdbState::default());
+    app.manage(remote::RemoteState::default());
+    app.manage(screen::ScreenState::default());
     tracker::start(app.clone());
 }
 

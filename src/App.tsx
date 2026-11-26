@@ -4,7 +4,8 @@ import { AddDevice } from "./routes/AddDevice";
 import { Home } from "./routes/Home";
 import { Settings } from "./routes/Settings";
 import { DeviceLayout } from "./routes/device/DeviceLayout";
-import { Apps, Install, Overview, Remote, Themes } from "./routes/device/sections";
+import { Remote } from "./routes/device/Remote";
+import { Apps, Install, Overview, Themes } from "./routes/device/sections";
 
 // Hash routing: the app is served from Tauri's asset protocol, where deep paths
 // would not resolve on reload; hash URLs always load index.html.

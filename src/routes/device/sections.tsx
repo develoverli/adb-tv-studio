@@ -1,5 +1,4 @@
 import { useParams } from "@solidjs/router";
-import Gamepad2 from "lucide-solid/icons/gamepad-2";
 import LayoutGrid from "lucide-solid/icons/layout-grid";
 import Package from "lucide-solid/icons/package";
 import Palette from "lucide-solid/icons/palette";
@@ -76,17 +75,6 @@ export function Themes() {
       badge={<InDevelopment />}
       title={t("sections.themesTitle")}
       body={t("sections.themesBody")}
-    />
-  );
-}
-
-export function Remote() {
-  return (
-    <EmptyState
-      icon={<Gamepad2 />}
-      badge={<InDevelopment />}
-      title={t("sections.remoteTitle")}
-      body={t("sections.remoteBody")}
     />
   );
 }

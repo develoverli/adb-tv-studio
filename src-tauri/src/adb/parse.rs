@@ -58,15 +58,20 @@ pub fn is_network_serial(serial: &str) -> bool {
 ///
 /// Each frame is a 4-digit hex length followed by that many bytes of `serial<TAB>state` lines.
 /// An empty device list is the bare frame `0000`, with no newline, so line-based reading is not enough.
+///
+/// On Windows adb writes stdout in text mode: every LF arrives as CRLF, but the length still
+/// counts the LF only. CRLF is folded back to LF on input so the lengths line up again.
 #[derive(Debug, Default)]
 pub struct FrameDecoder {
     buffer: Vec<u8>,
+    /// A chunk ended in CR; whether it starts a CRLF is decided by the next chunk's first byte.
+    pending_cr: bool,
 }
 
 impl FrameDecoder {
     /// Adds a chunk of raw stdout and returns every frame it completes.
     pub fn push(&mut self, chunk: &[u8]) -> Vec<String> {
-        self.buffer.extend_from_slice(chunk);
+        self.append_folding_crlf(chunk);
         let mut frames = Vec::new();
         while let Some(header) = self.buffer.get(..FRAME_HEADER_LEN) {
             let Some(length) = std::str::from_utf8(header)
@@ -85,6 +90,22 @@ impl FrameDecoder {
             self.buffer.drain(..end);
         }
         frames
+    }
+
+    fn append_folding_crlf(&mut self, chunk: &[u8]) {
+        for &byte in chunk {
+            if self.pending_cr {
+                self.pending_cr = false;
+                if byte != b'\n' {
+                    self.buffer.push(b'\r');
+                }
+            }
+            if byte == b'\r' {
+                self.pending_cr = true;
+            } else {
+                self.buffer.push(byte);
+            }
+        }
     }
 }
 
@@ -151,6 +172,18 @@ pub fn connect_outcome(output: &str) -> Result<ConnectStatus, AdbError> {
     }
 }
 
+/// Interprets `adb disconnect` output. "no such device" also counts as done: the TV is gone either way.
+/// adb's exit code is not reliable here (offline transports), so the text decides.
+pub fn disconnect_outcome(output: &str) -> Result<(), AdbError> {
+    let text = output.trim();
+    let lower = text.to_lowercase();
+    if lower.contains("disconnected") || lower.contains("no such device") {
+        Ok(())
+    } else {
+        Err(AdbError::Command(text.to_owned()))
+    }
+}
+
 /// Interprets `adb pair` output: success is `Successfully paired to host:port [guid=...]`.
 pub fn pair_outcome(output: &str) -> Result<(), AdbError> {
     let text = output.trim();
@@ -173,23 +206,30 @@ pub struct DeviceInfo {
     pub android_version: Option<String>,
 }
 
-/// Shell script whose output `device_info` parses: one value per line, in this order.
-pub const INFO_SCRIPT: &str = "getprop ro.product.manufacturer; getprop ro.product.model; \
-getprop ro.build.version.release; settings get global device_name";
+/// Shell script whose output `device_info` parses: one `key=value` line per fact.
+///
+/// Keys make the parse independent of blank lines, carriage returns or extra output some TVs print,
+/// which shifted values when they were read by position.
+pub const INFO_SCRIPT: &str = "echo \"manufacturer=$(getprop ro.product.manufacturer)\"; echo \"model=$(getprop ro.product.model)\"; echo \"android=$(getprop ro.build.version.release)\"; echo \"name=$(settings get global device_name)\"";
 
-/// Parses the output of [`INFO_SCRIPT`].
+/// Parses the output of [`INFO_SCRIPT`]. Unknown lines are ignored; empty and `null` values are `None`.
 pub fn device_info(output: &str) -> DeviceInfo {
-    let mut values = output.lines().map(|line| {
-        let value = line.trim();
-        (!value.is_empty() && value != "null").then(|| value.to_owned())
-    });
-    let mut next = || values.next().flatten();
-    DeviceInfo {
-        manufacturer: next(),
-        model: next(),
-        android_version: next(),
-        name: next(),
+    let mut info = DeviceInfo::default();
+    for line in output.lines() {
+        let Some((key, value)) = line.split_once('=') else {
+            continue;
+        };
+        let value = value.trim();
+        let value = (!value.is_empty() && value != "null").then(|| value.to_owned());
+        match key.trim() {
+            "manufacturer" => info.manufacturer = value,
+            "model" => info.model = value,
+            "android" => info.android_version = value,
+            "name" => info.name = value,
+            _ => {}
+        }
     }
+    info
 }
 
 /// Validates `host[:port]` typed by the user and returns `host:port`.
@@ -235,6 +275,33 @@ pub fn pairing_code(input: &str) -> Result<String, AdbError> {
 /// Host part of `host:port`.
 pub fn host_of(address: &str) -> &str {
     address.rsplit_once(':').map_or(address, |(host, _)| host)
+}
+
+/// Longest text sent in one `input text` call; longer strings are slow and some TVs drop them.
+const MAX_TEXT_LEN: usize = 200;
+
+/// Turns user text into the single argument of `input text`, quoted for the TV's shell.
+///
+/// Only printable ASCII and spaces: `input text` cannot type accents or emoji. Spaces become `%s`
+/// (how `input text` encodes them) and the whole value is single-quoted so the TV's shell expands nothing.
+pub fn input_text(text: &str) -> Result<String, AdbError> {
+    let valid = !text.is_empty()
+        && text.len() <= MAX_TEXT_LEN
+        && text
+            .chars()
+            .all(|character| character.is_ascii_graphic() || character == ' ');
+    if !valid {
+        return Err(AdbError::InvalidText);
+    }
+    let escaped: String = text
+        .chars()
+        .map(|character| match character {
+            ' ' => "%s".to_owned(),
+            '\'' => "'\\''".to_owned(),
+            other => other.to_string(),
+        })
+        .collect();
+    Ok(format!("'{escaped}'"))
 }
 
 #[cfg(test)]
@@ -302,6 +369,35 @@ mod tests {
         assert_eq!(
             (first.len(), second),
             (0, vec!["192.168.1.50:5555\tdevice\n".to_owned()])
+        );
+    }
+
+    #[test]
+    fn frame_decoder_should_fold_windows_line_endings() {
+        // Real bytes from adb 37.0.3 on Windows: the length (0x1b = 27) counts the LF, not CRLF.
+        let mut decoder = FrameDecoder::default();
+        let frames = decoder
+            .push(b"001b192.168.100.11:5555\tdevice\r\n001c192.168.100.11:5555\toffline\r\n");
+        assert_eq!(
+            frames,
+            vec![
+                "192.168.100.11:5555\tdevice\n".to_owned(),
+                "192.168.100.11:5555\toffline\n".to_owned()
+            ]
+        );
+    }
+
+    #[test]
+    fn frame_decoder_should_fold_crlf_split_across_chunks() {
+        let mut decoder = FrameDecoder::default();
+        let first = decoder.push(b"001b192.168.100.11:5555\tdevice\r");
+        let second = decoder.push(b"\n0000");
+        assert_eq!(
+            (first.len(), second),
+            (
+                0,
+                vec!["192.168.100.11:5555\tdevice\n".to_owned(), String::new()]
+            )
         );
     }
 
@@ -393,8 +489,14 @@ adb-1A2B-xYz\t_adb-tls-pairing._tcp.\t192.168.1.50:41234\n";
     }
 
     #[test]
-    fn device_info_should_read_values_in_order() {
-        let info = device_info("Google\nChromecast\n14\nLiving room\n");
+    fn device_info_should_read_values_by_key() {
+        let info = device_info(
+            "manufacturer=Google
+model=Chromecast
+android=14
+name=Living room
+",
+        );
         assert_eq!(
             info,
             DeviceInfo {
@@ -408,7 +510,30 @@ adb-1A2B-xYz\t_adb-tls-pairing._tcp.\t192.168.1.50:41234\n";
 
     #[test]
     fn device_info_should_drop_null_name() {
-        assert_eq!(device_info("Xiaomi\nMiBox\n9\nnull\n").name, None);
+        assert_eq!(
+            device_info(
+                "name=null
+"
+            )
+            .name,
+            None
+        );
+    }
+
+    #[test]
+    fn device_info_should_ignore_blank_lines_and_carriage_returns() {
+        let info = device_info(
+            "
+manufacturer=
+
+model=43FCOL
+android=11
+",
+        );
+        assert_eq!(
+            (info.manufacturer, info.model, info.android_version),
+            (None, Some("43FCOL".to_owned()), Some("11".to_owned()))
+        );
     }
 
     #[test]
@@ -460,5 +585,53 @@ adb-1A2B-xYz\t_adb-tls-pairing._tcp.\t192.168.1.50:41234\n";
     #[test]
     fn host_of_should_strip_port() {
         assert_eq!(host_of("192.168.1.50:37011"), "192.168.1.50");
+    }
+
+    #[test]
+    fn input_text_should_encode_spaces() {
+        assert_eq!(
+            input_text("star wars").ok(),
+            Some("'star%swars'".to_owned())
+        );
+    }
+
+    #[test]
+    fn input_text_should_escape_single_quotes() {
+        assert_eq!(input_text("it's").ok(), Some("'it'\\''s'".to_owned()));
+    }
+
+    #[test]
+    fn input_text_should_keep_shell_characters_quoted() {
+        assert_eq!(input_text("$(reboot)").ok(), Some("'$(reboot)'".to_owned()));
+    }
+
+    #[test]
+    fn input_text_should_reject_accents() {
+        assert!(input_text("canción").is_err());
+    }
+
+    #[test]
+    fn input_text_should_reject_newlines() {
+        assert!(input_text("a\nreboot").is_err());
+    }
+
+    #[test]
+    fn input_text_should_reject_empty() {
+        assert!(input_text("").is_err());
+    }
+
+    #[test]
+    fn disconnect_outcome_should_accept_disconnected() {
+        assert!(disconnect_outcome("disconnected 192.168.1.50:5555").is_ok());
+    }
+
+    #[test]
+    fn disconnect_outcome_should_accept_missing_device() {
+        assert!(disconnect_outcome("error: no such device '192.168.1.50:5555'").is_ok());
+    }
+
+    #[test]
+    fn disconnect_outcome_should_fail_on_other_errors() {
+        assert!(disconnect_outcome("error: cannot connect to daemon").is_err());
     }
 }

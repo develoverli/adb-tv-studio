@@ -133,16 +133,26 @@ pub async fn adb_disconnect(
     state: State<'_, AdbState>,
     serial: String,
 ) -> Result<(), AdbError> {
-    let known = state.devices().iter().any(|device| device.id == serial);
-    if !known {
-        return Err(AdbError::UnknownDevice(serial));
-    }
+    state.require_device(&serial)?;
     let output = run(&app, &["disconnect", &serial]).await?;
-    if output.success {
-        Ok(())
-    } else {
-        Err(AdbError::Command(output.text().trim().to_owned()))
+    parse::disconnect_outcome(&output.text())
+}
+
+/// Drops a stuck (offline) connection and connects again to the same address.
+#[tauri::command]
+pub async fn adb_reconnect(
+    app: AppHandle,
+    state: State<'_, AdbState>,
+    serial: String,
+) -> Result<ConnectStatus, AdbError> {
+    state.require_device(&serial)?;
+    // Only `ip:port` serials can be reconnected by address; mDNS names cannot.
+    let address = parse::address(&serial, None)?;
+    // The old transport may already be gone; a failed disconnect must not block the new connect.
+    if let Err(error) = run(&app, &["disconnect", &address]).await {
+        eprintln!("disconnect before reconnect failed: {error}");
     }
+    connect(&app, &address).await
 }
 
 async fn connect(app: &AppHandle, address: &str) -> Result<ConnectStatus, AdbError> {

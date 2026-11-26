@@ -13,6 +13,7 @@ pub fn run() -> tauri::Result<()> {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             adb::init(app.handle());
@@ -24,6 +25,14 @@ pub fn run() -> tauri::Result<()> {
             adb::commands::adb_connect,
             adb::commands::adb_pair,
             adb::commands::adb_disconnect,
+            adb::commands::adb_reconnect,
+            adb::remote::remote_open,
+            adb::remote::remote_close,
+            adb::remote::remote_key,
+            adb::remote::remote_text,
+            adb::remote::remote_tap,
+            adb::screen::screen_capture,
+            adb::screen::screen_save,
         ])
         .build(tauri::generate_context!())?;
 

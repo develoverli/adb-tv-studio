@@ -1,12 +1,13 @@
 import { A, type RouteSectionProps, useNavigate, useParams } from "@solidjs/router";
 import LoaderCircle from "lucide-solid/icons/loader-circle";
+import RefreshCw from "lucide-solid/icons/refresh-cw";
 import Unplug from "lucide-solid/icons/unplug";
 import { For, Show, createSignal } from "solid-js";
 import { Button } from "../../components/Button";
 import { EmptyState } from "../../components/EmptyState";
 import { StatusDot } from "../../components/StatusDot";
 import { t } from "../../i18n";
-import { describeError, disconnect } from "../../lib/adb";
+import { describeError, disconnect, reconnect } from "../../lib/adb";
 import { findDevice } from "../../lib/devices";
 import styles from "./DeviceLayout.module.css";
 
@@ -23,7 +24,22 @@ export function DeviceLayout(props: RouteSectionProps) {
   const device = () => findDevice(params.id);
   const navigate = useNavigate();
   const [disconnecting, setDisconnecting] = createSignal(false);
+  const [reconnecting, setReconnecting] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
+  const busy = () => disconnecting() || reconnecting();
+
+  const reconnectDevice = async (serial: string) => {
+    setReconnecting(true);
+    setError(null);
+    try {
+      const status = await reconnect(serial);
+      if (status === "unauthorized") setError(t("add.unauthorized"));
+    } catch (failure) {
+      setError(describeError(failure));
+    } finally {
+      setReconnecting(false);
+    }
+  };
 
   const disconnectDevice = async (serial: string) => {
     setDisconnecting(true);
@@ -74,17 +90,32 @@ export function DeviceLayout(props: RouteSectionProps) {
                 <StatusDot status={current().status} />
                 {t(`status.${current().status}`)}
               </p>
-              <Button
-                variant="ghost"
-                onClick={() => disconnectDevice(current().id)}
-                disabled={disconnecting()}
-                aria-describedby="device-disconnect-error"
-              >
-                <Show when={disconnecting()} fallback={<Unplug />}>
-                  <LoaderCircle class={styles.spin} />
+              <div class={styles.actionButtons}>
+                <Show when={current().status === "offline"}>
+                  <Button
+                    variant="primary"
+                    onClick={() => reconnectDevice(current().id)}
+                    disabled={busy()}
+                    aria-describedby="device-disconnect-error"
+                  >
+                    <Show when={reconnecting()} fallback={<RefreshCw />}>
+                      <LoaderCircle class={styles.spin} />
+                    </Show>
+                    {reconnecting() ? t("device.reconnecting") : t("device.reconnect")}
+                  </Button>
                 </Show>
-                {disconnecting() ? t("device.disconnecting") : t("device.disconnect")}
-              </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => disconnectDevice(current().id)}
+                  disabled={busy()}
+                  aria-describedby="device-disconnect-error"
+                >
+                  <Show when={disconnecting()} fallback={<Unplug />}>
+                    <LoaderCircle class={styles.spin} />
+                  </Show>
+                  {disconnecting() ? t("device.disconnecting") : t("device.disconnect")}
+                </Button>
+              </div>
               <p id="device-disconnect-error" class={styles.actionError} role="alert">
                 {error()}
               </p>
