@@ -200,7 +200,9 @@ function PairForm(props: PairFormProps) {
       const result = await pair(props.address, code());
       setCode("");
       setFeedback(
-        result.connected ? connectFeedback(result.connected, props.address) : { tone: "success", text: t("add.paired") },
+        result.connection
+          ? connectFeedback(result.connection.status, result.connection.address)
+          : { tone: "success", text: t("add.paired") },
       );
     } catch (error) {
       if (isAdbError(error) && error.kind === "invalidAddress") setInvalid("address");

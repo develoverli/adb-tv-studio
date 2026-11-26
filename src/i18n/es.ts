@@ -80,8 +80,8 @@ export const es: Dictionary = {
     unknown: "Algo salió mal. Inténtalo de nuevo.",
   },
   device: {
-    notFoundTitle: "Este televisor ya no está guardado",
-    notFoundBody: "Puede que se haya eliminado. Elige otro en la barra lateral o agrégalo de nuevo.",
+    notFoundTitle: "Este televisor no está conectado",
+    notFoundBody: "Puede estar apagado o se desconectó. Elige otro en la barra lateral o agrégalo de nuevo.",
     androidVersion: "Android {{ version }}",
     unknownValue: "Desconocido",
     disconnect: "Desconectar",

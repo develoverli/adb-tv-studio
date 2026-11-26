@@ -28,13 +28,22 @@ pub struct Discovered {
     pub kind: DiscoveryKind,
 }
 
+/// The connection `adb_pair` made after pairing.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Connection {
+    /// Connect address (`ip:port`) found by mDNS, which differs from the pairing port.
+    pub address: String,
+    pub status: ConnectStatus,
+}
+
 /// Result of a successful `adb_pair`.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PairResult {
-    /// Connection status when the connect port was found by mDNS; `None` means the user must
-    /// connect with the IP and port shown under Wireless debugging.
-    pub connected: Option<ConnectStatus>,
+    /// Set when mDNS revealed the connect port; `None` means the user must connect with the
+    /// IP and port shown under Wireless debugging.
+    pub connection: Option<Connection>,
 }
 
 /// Current device list, for the first render before any `devices-changed` event.
@@ -107,11 +116,14 @@ pub async fn adb_pair(
             service.kind == MdnsKind::Connect && parse::host_of(&service.address) == host
         })
         .map(|service| service.address);
-    let connected = match connect_address {
-        Some(connect_address) => Some(connect(&app, &connect_address).await?),
+    let connection = match connect_address {
+        Some(address) => {
+            let status = connect(&app, &address).await?;
+            Some(Connection { address, status })
+        }
         None => None,
     };
-    Ok(PairResult { connected })
+    Ok(PairResult { connection })
 }
 
 /// Disconnects a TV from the current list.

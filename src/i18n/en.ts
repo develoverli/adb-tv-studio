@@ -83,8 +83,8 @@ export const en = {
     unknown: "Something went wrong. Try again.",
   },
   device: {
-    notFoundTitle: "This TV is no longer saved",
-    notFoundBody: "It may have been removed. Pick another TV from the sidebar or add it again.",
+    notFoundTitle: "This TV is not connected",
+    notFoundBody: "It may be off, or it was disconnected. Pick another TV from the sidebar or add it again.",
     androidVersion: "Android {{ version }}",
     unknownValue: "Unknown",
     disconnect: "Disconnect",

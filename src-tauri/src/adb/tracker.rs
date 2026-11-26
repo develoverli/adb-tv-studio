@@ -40,7 +40,7 @@ async fn track(app: &AppHandle) -> Result<(), AdbError> {
         match event {
             CommandEvent::Stdout(chunk) => {
                 for frame in decoder.push(&chunk) {
-                    refresh(app, &frame).await;
+                    refresh(app, &frame);
                 }
             }
             CommandEvent::Error(message) => return Err(AdbError::Command(message)),
@@ -51,58 +51,86 @@ async fn track(app: &AppHandle) -> Result<(), AdbError> {
     Ok(())
 }
 
-/// Rebuilds the device list from one frame, reading info for newly connected TVs, and emits it.
-async fn refresh(app: &AppHandle, frame: &str) {
+/// Stores the entries from one frame, emits the list right away and reads info for newly
+/// connected TVs in the background, so a slow or hung TV never holds up the list.
+fn refresh(app: &AppHandle, frame: &str) {
     let state = app.state::<AdbState>();
     let entries: Vec<(String, DeviceStatus)> = parse::device_list(frame)
         .into_iter()
         .filter(|(serial, _)| parse::is_network_serial(serial))
         .collect();
 
-    for (serial, status) in &entries {
-        let known = state.info().contains_key(serial);
-        if *status == DeviceStatus::Connected && !known {
-            let info = read_info(app, serial).await;
-            state.info().insert(serial.clone(), info);
-        }
-    }
-
-    let devices: Vec<Device> = {
+    let to_read: Vec<String> = {
         let info = state.info();
+        let mut pending = state.pending();
         entries
-            .into_iter()
-            .map(|(serial, status)| {
-                let found = info.get(serial.as_str());
-                to_device(serial, status, found)
+            .iter()
+            .filter(|(serial, status)| {
+                *status == DeviceStatus::Connected && !info.contains_key(serial)
             })
+            .filter(|(serial, _)| pending.insert(serial.clone()))
+            .map(|(serial, _)| serial.clone())
             .collect()
     };
-    state.devices().clone_from(&devices);
+    *state.entries() = entries;
+    emit_devices(app);
+
+    for serial in to_read {
+        let app = app.clone();
+        tauri::async_runtime::spawn(async move {
+            let info = read_info(&app, &serial).await;
+            let state = app.state::<AdbState>();
+            state.pending().remove(&serial);
+            if let Some(info) = info {
+                state.info().insert(serial, info);
+                emit_devices(&app);
+            }
+        });
+    }
+}
+
+/// Rebuilds the list from the latest entries and info, stores it and emits it.
+///
+/// The `devices` lock is held through the emit, so concurrent callers (tracker and info reads)
+/// emit in the same order they build, and an older list never arrives after a newer one.
+fn emit_devices(app: &AppHandle) {
+    let state = app.state::<AdbState>();
+    let mut current = state.devices();
+    let devices: Vec<Device> = {
+        let entries = state.entries();
+        let info = state.info();
+        entries
+            .iter()
+            .map(|(serial, status)| to_device(serial, *status, info.get(serial)))
+            .collect()
+    };
+    current.clone_from(&devices);
     if let Err(error) = app.emit(DEVICES_CHANGED, devices) {
         eprintln!("could not emit {DEVICES_CHANGED}: {error}");
     }
 }
 
-/// Reads name, model and Android version. Failures leave the fields empty instead of hiding the TV.
-async fn read_info(app: &AppHandle, serial: &str) -> DeviceInfo {
+/// Reads name, model and Android version. `None` on failure, so the read is retried later;
+/// the TV itself stays in the list either way.
+async fn read_info(app: &AppHandle, serial: &str) -> Option<DeviceInfo> {
     match run(app, &["-s", serial, "shell", parse::INFO_SCRIPT]).await {
-        Ok(output) if output.success => parse::device_info(&output.stdout),
+        Ok(output) if output.success => Some(parse::device_info(&output.stdout)),
         Ok(output) => {
             eprintln!(
                 "could not read info from {serial}: {}",
                 output.text().trim()
             );
-            DeviceInfo::default()
+            None
         }
         Err(error) => {
             eprintln!("could not read info from {serial}: {error}");
-            DeviceInfo::default()
+            None
         }
     }
 }
 
 /// Builds the frontend device. Name falls back to "Manufacturer Model", then to the address.
-fn to_device(serial: String, status: DeviceStatus, info: Option<&DeviceInfo>) -> Device {
+fn to_device(serial: &str, status: DeviceStatus, info: Option<&DeviceInfo>) -> Device {
     let info = info.cloned().unwrap_or_default();
     let name = info
         .name
@@ -112,10 +140,10 @@ fn to_device(serial: String, status: DeviceStatus, info: Option<&DeviceInfo>) ->
             (None, Some(model)) => Some(model.clone()),
             _ => None,
         })
-        .unwrap_or_else(|| serial.clone());
+        .unwrap_or_else(|| serial.to_owned());
     Device {
-        address: serial.clone(),
-        id: serial,
+        id: serial.to_owned(),
+        address: serial.to_owned(),
         name,
         model: info.model,
         android_version: info.android_version,

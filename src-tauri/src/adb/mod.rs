@@ -11,7 +11,7 @@ pub use error::AdbError;
 
 use parse::{DeviceInfo, DeviceStatus};
 use serde::Serialize;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 use tauri::{AppHandle, Manager};
@@ -42,10 +42,15 @@ pub struct Device {
 /// Shared backend state, managed by Tauri.
 #[derive(Default)]
 pub struct AdbState {
-    /// Latest device list from `track-devices`, already enriched with info.
+    /// Latest device list sent to the frontend, already enriched with info.
     devices: Mutex<Vec<Device>>,
+    /// Latest `serial, status` pairs from `track-devices`, so info arriving later can rebuild the list.
+    entries: Mutex<Vec<(String, DeviceStatus)>>,
     /// Info read from each TV once connected, keyed by serial. Kept while it goes offline.
+    /// Only successful reads are stored, so a failed read is retried on the next state change.
     info: Mutex<HashMap<String, DeviceInfo>>,
+    /// Serials with an info read in flight, so a TV is never read twice at once.
+    pending: Mutex<HashSet<String>>,
     /// Set on app exit so the tracker does not restart the server we are killing.
     shutting_down: AtomicBool,
 }
@@ -56,8 +61,16 @@ impl AdbState {
         self.devices.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
+    fn entries(&self) -> MutexGuard<'_, Vec<(String, DeviceStatus)>> {
+        self.entries.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
     fn info(&self) -> MutexGuard<'_, HashMap<String, DeviceInfo>> {
         self.info.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn pending(&self) -> MutexGuard<'_, HashSet<String>> {
+        self.pending.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
     fn is_shutting_down(&self) -> bool {

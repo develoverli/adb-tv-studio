@@ -17,9 +17,15 @@ export interface Discovered {
   kind: DiscoveryKind;
 }
 
+export interface Connection {
+  /** Connect address found by mDNS; differs from the pairing port. */
+  address: string;
+  status: ConnectStatus;
+}
+
 export interface PairResult {
   /** null: paired, but the connect port was not announced; connect with the IP and port shown on the TV. */
-  connected: ConnectStatus | null;
+  connection: Connection | null;
 }
 
 export const ADB_ERROR_KINDS = [

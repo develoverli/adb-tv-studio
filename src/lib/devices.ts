@@ -39,8 +39,15 @@ function applyDevices(next: Device[]): void {
 export async function startDeviceSync(): Promise<void> {
   // Plain `vite` in a browser has no Tauri backend; keep the empty (or mock) list.
   if (useMock || !isTauri()) return;
-  await onDevicesChanged(applyDevices);
-  applyDevices(await listDevices());
+  // Subscribe first so no change is missed, then load the snapshot. An event that arrives
+  // while the snapshot is in flight is newer than it, so the snapshot is then dropped.
+  let eventSeen = false;
+  await onDevicesChanged((next) => {
+    eventSeen = true;
+    applyDevices(next);
+  });
+  const snapshot = await listDevices();
+  if (!eventSeen) applyDevices(snapshot);
 }
 
 export function findDevice(id: string): Device | undefined {
