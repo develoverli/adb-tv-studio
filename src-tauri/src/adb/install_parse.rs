@@ -78,10 +78,23 @@ pub fn install_kind(file_code: Option<u64>, installed: Option<&InstalledVersion>
     }
 }
 
+/// Longest reason shown for an unrecognised failure; the rest is usually a Java stack trace.
+const MAX_REASON_LEN: usize = 160;
+
+/// Exception texts some TVs print instead of a `Failure [CODE]`, mapped to the matching code.
+const EXCEPTION_CODES: [(&str, &str); 2] = [
+    ("not enough space", "INSTALL_FAILED_INSUFFICIENT_STORAGE"),
+    (
+        "INSUFFICIENT_STORAGE",
+        "INSTALL_FAILED_INSUFFICIENT_STORAGE",
+    ),
+];
+
 /// Interprets `adb install` / `install-multiple` output.
 ///
-/// Failures look like `adb: failed to install x.apk: Failure [INSTALL_FAILED_VERSION_DOWNGRADE: ...]`;
-/// the code inside the brackets is returned so the UI can explain it.
+/// Failures usually look like `adb: failed to install x.apk: Failure [INSTALL_FAILED_VERSION_DOWNGRADE: ...]`,
+/// and the code inside the brackets is returned so the UI can explain it. Some TVs throw a Java
+/// exception instead; known ones are mapped to their code, others are cut to the exception message.
 pub fn install_outcome(output: &str) -> Result<(), AdbError> {
     let text = output.trim();
     if let Some(start) = text.find("Failure [") {
@@ -91,16 +104,34 @@ pub fn install_outcome(output: &str) -> Result<(), AdbError> {
             .take_while(|character| character.is_ascii_uppercase() || *character == '_')
             .collect();
         return Err(AdbError::InstallFailed(if code.is_empty() {
-            rest.trim_end_matches(']').to_owned()
+            short_reason(rest.trim_end_matches(']'))
         } else {
             code
         }));
     }
     if text.lines().any(|line| line.trim() == "Success") {
-        Ok(())
-    } else {
-        Err(AdbError::InstallFailed(text.to_owned()))
+        return Ok(());
     }
+    if let Some((_, code)) = EXCEPTION_CODES
+        .iter()
+        .find(|(marker, _)| text.contains(marker))
+    {
+        return Err(AdbError::InstallFailed((*code).to_owned()));
+    }
+    Err(AdbError::InstallFailed(short_reason(text)))
+}
+
+/// The most specific exception message ("Requested internal only, ..."), without the stack trace.
+fn short_reason(text: &str) -> String {
+    let first_exception = text
+        .lines()
+        .map(str::trim)
+        .find(|line| line.contains("Exception: ") && !line.starts_with("at "));
+    let reason = first_exception
+        .and_then(|line| line.rsplit("Exception: ").next())
+        .unwrap_or_else(|| text.lines().next().unwrap_or_default())
+        .trim();
+    reason.chars().take(MAX_REASON_LEN).collect()
 }
 
 #[cfg(test)]
@@ -183,6 +214,30 @@ versionCode=1234 minSdk=21 targetSdk=30\n    versionName=8.1.0\n    splits=[base
         );
         assert!(
             matches!(result, Err(AdbError::InstallFailed(code)) if code == "INSTALL_FAILED_VERSION_DOWNGRADE")
+        );
+    }
+
+    /// Real output from a KTC Android 11 TV with a full internal storage.
+    const NO_SPACE: &str = "Performing Streamed Install\r\n\
+adb.exe: failed to install C:\\Users\\me\\Downloads\\Xuper_TV2.apk: Exception occurred while executing 'install':\r\n\
+android.os.ParcelableException: java.io.IOException: Requested internal only, but not enough space\r\n\
+\tat android.util.ExceptionUtils.wrap(ExceptionUtils.java:34)\r\n\
+\tat com.android.server.pm.PackageInstallerService.createSession(PackageInstallerService.java:538)\r\n";
+
+    #[test]
+    fn install_outcome_should_map_no_space_exception_to_storage_code() {
+        let result = install_outcome(NO_SPACE);
+        assert!(
+            matches!(result, Err(AdbError::InstallFailed(code)) if code == "INSTALL_FAILED_INSUFFICIENT_STORAGE")
+        );
+    }
+
+    #[test]
+    fn install_outcome_should_drop_stack_trace_from_unknown_exception() {
+        let output = "Exception occurred while executing 'install':\njava.lang.SecurityException: Shell does not have permission\n\tat com.android.server.Foo(Foo.java:1)\n";
+        let result = install_outcome(output);
+        assert!(
+            matches!(result, Err(AdbError::InstallFailed(reason)) if reason == "Shell does not have permission")
         );
     }
 

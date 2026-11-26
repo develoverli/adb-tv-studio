@@ -16,7 +16,7 @@ import Undo2 from "lucide-solid/icons/undo-2";
 import Volume1 from "lucide-solid/icons/volume-1";
 import Volume2 from "lucide-solid/icons/volume-2";
 import VolumeX from "lucide-solid/icons/volume-x";
-import { For, type JSX, Show, createEffect, createSignal, on, onCleanup, onMount } from "solid-js";
+import { For, type JSX, Show, createEffect, createRoot, createSignal, on, onCleanup, onMount } from "solid-js";
 import { Button } from "../../components/Button";
 import { t } from "../../i18n";
 import { describeError } from "../../lib/adb";
@@ -350,8 +350,15 @@ function Screen(props: { serial: string; connected: boolean }) {
   );
 }
 
+/** Unsent text per TV, kept when leaving the Control tab. */
+const drafts = createRoot(() => {
+  const [all, setAll] = createSignal<Record<string, string>>({});
+  return { all, setAll };
+});
+
 function TextForm(props: { serial: string }) {
-  const [text, setText] = createSignal("");
+  const text = () => drafts.all()[props.serial] ?? "";
+  const setText = (value: string) => drafts.setAll((current) => ({ ...current, [props.serial]: value }));
   const [pending, setPending] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
   const valid = () => text() === "" || isTypeable(text());

@@ -9,6 +9,7 @@ import { StatusDot } from "../../components/StatusDot";
 import { t } from "../../i18n";
 import { describeError, disconnect, reconnect } from "../../lib/adb";
 import { findDevice } from "../../lib/devices";
+import { isInstalling } from "../../lib/installQueue";
 import styles from "./DeviceLayout.module.css";
 
 const TABS = [
@@ -132,6 +133,11 @@ export function DeviceLayout(props: RouteSectionProps) {
                   activeClass={styles.tabActive}
                 >
                   {t(`device.tabs.${tab.key}`)}
+                  <Show when={tab.key === "install" && isInstalling(current().id)}>
+                    <span class={styles.tabBadge} title={t("install.installing")}>
+                      <span class="visually-hidden">{t("install.installing")}</span>
+                    </span>
+                  </Show>
                 </A>
               )}
             </For>

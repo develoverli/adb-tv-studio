@@ -10,33 +10,21 @@ import TriangleAlert from "lucide-solid/icons/triangle-exclamation-point";
 import X from "lucide-solid/icons/x";
 import { For, Show, createSignal, onCleanup, onMount } from "solid-js";
 import { Button } from "../../components/Button";
-import { confirmAction } from "../../components/ConfirmDialog";
 import { Pill } from "../../components/Pill";
 import { t } from "../../i18n";
 import { describeError } from "../../lib/adb";
 import { findDevice } from "../../lib/devices";
+import { type InstallPreview, formatSize, openPackage, pickFiles } from "../../lib/install";
 import {
-  type InstallPreview,
-  describeInstallError,
-  fileIcon,
-  formatSize,
-  inspectFile,
-  installFile,
-  isInstallable,
-  openPackage,
-  pickFiles,
-} from "../../lib/install";
+  type QueueItem,
+  addToQueue,
+  hadRejectedFiles,
+  installAll as installEverything,
+  installItem,
+  installQueue,
+  removeFromQueue,
+} from "../../lib/installQueue";
 import styles from "./Install.module.css";
-
-type Status = "inspecting" | "ready" | "installing" | "installed" | "error";
-
-interface QueueItem {
-  path: string;
-  status: Status;
-  preview: InstallPreview | null;
-  icon: string | null;
-  message: string | null;
-}
 
 function fileNameOf(path: string): string {
   return path.split(/[\\/]/).pop() ?? path;
@@ -65,92 +53,15 @@ export function Install() {
   const serial = () => params.id;
   const connected = () => findDevice(serial())?.status === "connected";
 
-  const [queue, setQueue] = createSignal<QueueItem[]>([]);
+  // Queue lives in a per-TV store: leaving the tab keeps it and installs keep running.
+  const queue = () => installQueue(serial());
+  const rejected = () => hadRejectedFiles(serial());
   const [dragging, setDragging] = createSignal(false);
-  const [rejected, setRejected] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
-  let installingAll = false;
-
-  const update = (path: string, change: Partial<QueueItem>) => {
-    setQueue((items) => items.map((item) => (item.path === path ? { ...item, ...change } : item)));
-  };
-
-  onCleanup(() => {
-    for (const item of queue()) if (item.icon) URL.revokeObjectURL(item.icon);
-  });
-
-  const addFiles = async (paths: string[]) => {
-    const accepted = paths.filter(isInstallable);
-    setRejected(accepted.length < paths.length);
-    const known = new Set(queue().map((item) => item.path));
-    const fresh = accepted.filter((path) => !known.has(path));
-    setQueue((items) => [
-      ...items,
-      ...fresh.map((path): QueueItem => ({ path, status: "inspecting", preview: null, icon: null, message: null })),
-    ]);
-    for (const path of fresh) {
-      try {
-        const preview = await inspectFile(serial(), path);
-        let icon: string | null = null;
-        if (preview.hasIcon) {
-          try {
-            icon = URL.createObjectURL(new Blob([await fileIcon(path)]));
-          } catch {
-            // Keep the generic icon.
-          }
-        }
-        update(path, { status: "ready", preview, icon });
-      } catch (failure) {
-        update(path, { status: "error", message: describeError(failure) });
-      }
-    }
-  };
-
-  const remove = (path: string) => {
-    const item = queue().find((entry) => entry.path === path);
-    if (item?.icon) URL.revokeObjectURL(item.icon);
-    setQueue((items) => items.filter((entry) => entry.path !== path));
-  };
-
-  /** Installs one file; returns false when the user cancelled a downgrade. */
-  const install = async (item: QueueItem): Promise<boolean> => {
-    const preview = item.preview;
-    if (!preview || !preview.compatible) return true;
-    const downgrade = preview.kind === "downgrade";
-    if (downgrade) {
-      const confirmed = await confirmAction({
-        title: t("install.confirmDowngradeTitle", { name: preview.label ?? preview.package }),
-        body: t("install.confirmDowngradeBody", {
-          installed: preview.installedVersionName ?? "?",
-          file: preview.versionName ?? "?",
-        }),
-        confirmLabel: t("install.installOlder"),
-        danger: true,
-      });
-      if (!confirmed) return false;
-    }
-    update(item.path, { status: "installing", message: null });
-    try {
-      await installFile(serial(), item.path, downgrade);
-      update(item.path, { status: "installed" });
-    } catch (failure) {
-      update(item.path, { status: "error", message: describeInstallError(failure) });
-    }
-    return true;
-  };
-
-  const installAll = async () => {
-    if (installingAll) return;
-    installingAll = true;
-    try {
-      for (const item of queue()) {
-        const current = queue().find((entry) => entry.path === item.path);
-        if (current?.status === "ready" && current.preview?.compatible) await install(current);
-      }
-    } finally {
-      installingAll = false;
-    }
-  };
+  const addFiles = (paths: string[]) => addToQueue(serial(), paths);
+  const remove = (path: string) => removeFromQueue(serial(), path);
+  const install = (item: QueueItem) => installItem(serial(), item.path);
+  const installAll = () => installEverything(serial());
 
   const choose = async () => {
     setError(null);

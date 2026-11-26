@@ -10,32 +10,18 @@ import RefreshCw from "lucide-solid/icons/refresh-cw";
 import Search from "lucide-solid/icons/search";
 import Trash2 from "lucide-solid/icons/trash";
 import X from "lucide-solid/icons/x";
-import { For, type JSX, Show, createEffect, createMemo, createSignal, on, onCleanup } from "solid-js";
+import { For, type JSX, Show, createEffect, createMemo, createSignal, on } from "solid-js";
 import { Button } from "../../components/Button";
 import { confirmAction } from "../../components/ConfirmDialog";
 import { Pill } from "../../components/Pill";
 import { t } from "../../i18n";
 import { describeError } from "../../lib/adb";
-import {
-  type AppAction,
-  type AppEntry,
-  appName,
-  listApps,
-  loadAppDetails,
-  loadAppIcon,
-  runAppAction,
-} from "../../lib/apps";
+import { type AppAction, type AppEntry, appName, runAppAction } from "../../lib/apps";
+import { appsState, ensureApps, reloadApps, setAppsQuery, setSelectedApp } from "../../lib/appsStore";
 import { findDevice } from "../../lib/devices";
 import styles from "./Apps.module.css";
 
 const SEARCH_ID = "apps-search";
-
-interface Progress {
-  done: number;
-  total: number;
-  /** Name of the app whose APK is being read right now. */
-  current: string;
-}
 
 interface Feedback {
   tone: "success" | "error";
@@ -53,90 +39,24 @@ export function Apps() {
   const serial = () => params.id;
   const connected = () => findDevice(serial())?.status === "connected";
 
-  const [apps, setApps] = createSignal<AppEntry[] | null>(null);
-  const [loading, setLoading] = createSignal(false);
-  const [error, setError] = createSignal<string | null>(null);
-  const [query, setQuery] = createSignal("");
-  const [selected, setSelected] = createSignal<string | null>(null);
-  const [icons, setIcons] = createSignal<Record<string, string>>({});
-  const [progress, setProgress] = createSignal<Progress | null>(null);
-  // Bumped on every reload or TV switch, so a stale background loop stops.
-  let generation = 0;
-
-  const revokeIcons = () => {
-    for (const url of Object.values(icons())) URL.revokeObjectURL(url);
-    setIcons({});
-  };
-  onCleanup(() => {
-    generation += 1;
-    revokeIcons();
-  });
-
-  const updateApp = (packageName: string, update: Partial<AppEntry>) => {
-    setApps((current) => current?.map((app) => (app.package === packageName ? { ...app, ...update } : app)) ?? null);
-  };
-
-  const showIcon = async (app: AppEntry, run: number) => {
-    if (icons()[app.package]) return;
-    try {
-      const bytes = await loadAppIcon(app);
-      if (run !== generation) return;
-      const url = URL.createObjectURL(new Blob([bytes]));
-      setIcons((current) => ({ ...current, [app.package]: url }));
-    } catch {
-      // No image: the card keeps its generic icon.
-    }
-  };
-
-  /** Fills names and images one app at a time, from cache when possible. */
-  const loadDetails = async (list: AppEntry[], run: number) => {
-    const launcher = list.filter((app) => app.launcher);
-    for (const app of launcher) {
-      if (app.details?.hasIcon) void showIcon(app, run);
-    }
-    const missing = launcher.filter((app) => !app.details);
-    // Count every launcher app, so cached ones show as already done ("8/25", not "0/17").
-    let done = launcher.length - missing.length;
-    for (const app of missing) {
-      if (run !== generation) return;
-      setProgress({ done, total: launcher.length, current: appName(app) });
-      try {
-        const details = await loadAppDetails(serial(), app);
-        if (run !== generation) return;
-        updateApp(app.package, { details });
-        if (details.hasIcon) await showIcon({ ...app, details }, run);
-      } catch {
-        // Unreadable APK (odd format, removed meanwhile): keep the package name.
-      }
-      done += 1;
-    }
-    if (run === generation) setProgress(null);
-  };
-
-  const reload = async () => {
-    generation += 1;
-    const run = generation;
-    setLoading(true);
-    setError(null);
-    try {
-      const list = await listApps(serial());
-      if (run !== generation) return;
-      setApps(list);
-      void loadDetails(list, run);
-    } catch (failure) {
-      if (run === generation) setError(describeError(failure));
-    } finally {
-      if (run === generation) setLoading(false);
-    }
-  };
+  // State lives in a per-TV store, so leaving the tab keeps the list and the loading goes on.
+  const current = () => appsState(serial());
+  const apps = () => current().apps;
+  const loading = () => current().loading;
+  const error = () => current().error;
+  const icons = () => current().icons;
+  const progress = () => current().progress;
+  const query = () => current().query;
+  const setQuery = (value: string) => setAppsQuery(serial(), value);
+  const selected = () => current().selected;
+  const setSelected = (packageName: string | null) => setSelectedApp(serial(), packageName);
+  const reload = () => reloadApps(serial());
 
   createEffect(
-    on([serial, connected], ([, isConnected]) => {
-      setSelected(null);
-      if (isConnected) void reload();
+    on([serial, connected], ([currentSerial, isConnected]) => {
+      if (isConnected) ensureApps(currentSerial);
     }),
   );
-  createEffect(on(serial, revokeIcons, { defer: true }));
 
   const launcherApps = createMemo(() => (apps() ?? []).filter((app) => app.launcher && matches(app, query())));
   const otherApps = createMemo(() => (apps() ?? []).filter((app) => !app.launcher && matches(app, query())));

@@ -2,7 +2,7 @@ import KeyRound from "lucide-solid/icons/key-round";
 import LoaderCircle from "lucide-solid/icons/loader-circle";
 import Radar from "lucide-solid/icons/radar";
 import TextCursorInput from "lucide-solid/icons/text-cursor-input";
-import { For, type JSX, Show, createSignal } from "solid-js";
+import { For, type JSX, Show, createRoot, createSignal } from "solid-js";
 import { Button } from "../components/Button";
 import { Pill } from "../components/Pill";
 import { t } from "../i18n";
@@ -52,8 +52,47 @@ function isAdded(address: string): boolean {
   return devices.some((device) => device.address === address);
 }
 
-export function AddDevice() {
+/**
+ * Screen state kept outside the components, so leaving "Add a TV" and coming back keeps scan
+ * results, typed addresses and messages; a scan or connect still in flight finishes in the background.
+ */
+const saved = createRoot(() => {
   const [pairAddress, setPairAddress] = createSignal("");
+  const [scanning, setScanning] = createSignal(false);
+  const [results, setResults] = createSignal<Discovered[] | null>(null);
+  const [connecting, setConnecting] = createSignal<string | null>(null);
+  const [scanFeedback, setScanFeedback] = createSignal<Feedback | null>(null);
+  const [pairPending, setPairPending] = createSignal(false);
+  const [pairFeedback, setPairFeedback] = createSignal<Feedback | null>(null);
+  const [manualAddress, setManualAddress] = createSignal("");
+  const [manualPending, setManualPending] = createSignal(false);
+  const [manualFeedback, setManualFeedback] = createSignal<Feedback | null>(null);
+  return {
+    pairAddress,
+    setPairAddress,
+    scanning,
+    setScanning,
+    results,
+    setResults,
+    connecting,
+    setConnecting,
+    scanFeedback,
+    setScanFeedback,
+    pairPending,
+    setPairPending,
+    pairFeedback,
+    setPairFeedback,
+    manualAddress,
+    setManualAddress,
+    manualPending,
+    setManualPending,
+    manualFeedback,
+    setManualFeedback,
+  };
+});
+
+export function AddDevice() {
+  const { pairAddress, setPairAddress } = saved;
   let pairCodeInput: HTMLInputElement | undefined;
 
   const usePairing = (address: string) => {
@@ -90,10 +129,9 @@ export function AddDevice() {
 }
 
 function ScanSection(props: { onUsePairing: (address: string) => void }) {
-  const [scanning, setScanning] = createSignal(false);
-  const [results, setResults] = createSignal<Discovered[] | null>(null);
-  const [connecting, setConnecting] = createSignal<string | null>(null);
-  const [feedback, setFeedback] = createSignal<Feedback | null>(null);
+  const { scanning, setScanning, results, setResults, connecting, setConnecting } = saved;
+  const feedback = saved.scanFeedback;
+  const setFeedback = saved.setScanFeedback;
 
   const runScan = async () => {
     setScanning(true);
@@ -186,9 +224,12 @@ interface PairFormProps {
 }
 
 function PairForm(props: PairFormProps) {
+  // The pairing code is single-use, so it is not kept when leaving the screen.
   const [code, setCode] = createSignal("");
-  const [pending, setPending] = createSignal(false);
-  const [feedback, setFeedback] = createSignal<Feedback | null>(null);
+  const pending = saved.pairPending;
+  const setPending = saved.setPairPending;
+  const feedback = saved.pairFeedback;
+  const setFeedback = saved.setPairFeedback;
   const [invalid, setInvalid] = createSignal<"address" | "code" | null>(null);
 
   const submit = async (event: SubmitEvent) => {
@@ -265,9 +306,12 @@ function PairForm(props: PairFormProps) {
 }
 
 function ManualForm() {
-  const [address, setAddress] = createSignal("");
-  const [pending, setPending] = createSignal(false);
-  const [feedback, setFeedback] = createSignal<Feedback | null>(null);
+  const address = saved.manualAddress;
+  const setAddress = saved.setManualAddress;
+  const pending = saved.manualPending;
+  const setPending = saved.setManualPending;
+  const feedback = saved.manualFeedback;
+  const setFeedback = saved.setManualFeedback;
 
   const submit = async (event: SubmitEvent) => {
     event.preventDefault();
