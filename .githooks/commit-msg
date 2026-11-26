@@ -1,0 +1,32 @@
+#!/bin/sh
+# Rejects commit messages release-please cannot parse, so a push never silently skips a release.
+# Format: type(optional-scope)!: description   e.g. "feat: ✨ add remote control"
+# The gitmoji goes AFTER the type: a message that starts with an emoji is ignored by release-please.
+# Enabled by `pnpm install` (the "prepare" script sets core.hooksPath to .githooks).
+
+message_file="$1"
+subject=$(head -n 1 "$message_file")
+
+case "$subject" in
+  "Merge "* | "Revert "* | "fixup! "* | "squash! "*) exit 0 ;;
+esac
+
+types='feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert'
+pattern="^($types)(\([a-z0-9._/-]+\))?!?: [^ ].*"
+
+if printf '%s\n' "$subject" | grep -Eq "$pattern"; then
+  exit 0
+fi
+
+cat >&2 <<EOF
+commit-msg: the subject is not a Conventional Commit, so release-please would ignore it.
+
+  got:      $subject
+  expected: <type>(<optional scope>)!: <description>
+  types:    feat fix docs style refactor perf test build ci chore revert
+  example:  feat: ✨ add remote control
+            fix(adb): 🐛 retry failed info reads
+
+The gitmoji goes after "type: ", never first.
+EOF
+exit 1

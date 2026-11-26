@@ -99,15 +99,17 @@ fix(adb): 🐛 handle unauthorized device state
 
 Pull requests are squash-merged, so the **PR title** must follow the same format.
 
+`pnpm install` enables a `commit-msg` hook (`.githooks/commit-msg`) that rejects subjects release-please cannot parse.
+
 ## Releases
 
 Releases are automated with [release-please](https://github.com/googleapis/release-please):
 
-1. Every merge to `main` updates an open "release" PR with the next version and `CHANGELOG.md`.
-2. Merging that PR tags the version and creates a GitHub Release.
-3. The release workflow builds Windows, macOS and Linux bundles, uploads them, and publishes `latest.json` for the in-app updater.
+1. A push to `main` with releasable commits (`feat:`, `fix:`, breaking changes) makes release-please open a release PR with the next version and `CHANGELOG.md`. A push with nothing releasable does nothing.
+2. The release workflow merges that PR immediately, then tags the version and creates a GitHub Release. No manual step.
+3. It then builds Windows, macOS and Linux bundles, uploads them, and publishes `latest.json` for the in-app updater.
 
-Contributors never bump versions by hand.
+Contributors never bump versions or create tags by hand. Each release adds a commit to `main`, so run `git pull --rebase` before your next push.
 
 ## Updating adb
 

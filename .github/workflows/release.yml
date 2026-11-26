@@ -12,16 +12,36 @@ jobs:
   release-please:
     name: Release Please
     runs-on: ubuntu-latest
+    # Fully automatic: a push with releasable commits (feat, fix, ...) opens the release PR,
+    # this job merges it right away and a second release-please run tags and publishes it.
+    # A push with nothing releasable (docs, chore, ci) opens no PR and releases nothing.
     outputs:
-      release_created: ${{ steps.release.outputs.release_created }}
-      tag_name: ${{ steps.release.outputs.tag_name }}
-      release_id: ${{ steps.release.outputs.id }}
+      release_created: ${{ steps.release.outputs.release_created || steps.publish.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name || steps.publish.outputs.tag_name }}
+      release_id: ${{ steps.release.outputs.id || steps.publish.outputs.id }}
     steps:
       - id: release
         uses: googleapis/release-please-action@v5
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+
+      - name: Merge release PR
+        if: steps.release.outputs.pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ fromJSON(steps.release.outputs.pr).number }}
+          REPO: ${{ github.repository }}
+        run: gh pr merge "$PR_NUMBER" --repo "$REPO" --squash --delete-branch
+
+      # Only creates the tag and GitHub release for the PR merged above; never opens a new PR.
+      - id: publish
+        if: steps.release.outputs.pr
+        uses: googleapis/release-please-action@v5
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          skip-github-pull-request: true
 
   build:
     name: Build (${{ matrix.target }})

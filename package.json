@@ -23,6 +23,7 @@
     "serve": "vite preview",
     "typecheck": "tsc --noEmit",
     "fetch-adb": "node scripts/fetch-adb.mjs",
+    "prepare": "git config core.hooksPath .githooks",
     "tauri": "tauri"
   },
   "dependencies": {
