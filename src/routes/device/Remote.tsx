@@ -16,13 +16,25 @@ import Undo2 from "lucide-solid/icons/undo-2";
 import Volume1 from "lucide-solid/icons/volume-1";
 import Volume2 from "lucide-solid/icons/volume-2";
 import VolumeX from "lucide-solid/icons/volume-x";
-import { For, type JSX, Show, createEffect, createRoot, createSignal, on, onCleanup, onMount } from "solid-js";
+import { For, type JSX, Show, createEffect, createResource, createRoot, createSignal, on, onCleanup, onMount } from "solid-js";
 import { Button } from "../../components/Button";
+import { Segmented } from "../../components/Segmented";
 import { t } from "../../i18n";
 import { describeError } from "../../lib/adb";
 import { findDevice } from "../../lib/devices";
 import {
-  MAX_TEXT_LENGTH,
+  MAX_LIVE_TEXT_BYTES,
+  QUALITIES,
+  type Quality,
+  canPlayLive,
+  fitsLiveText,
+  liveKey,
+  liveTap,
+  liveText,
+  startLive,
+} from "../../lib/scrcpy";
+import { STORAGE_KEYS, readChoice, writeStored } from "../../lib/storage";
+import {
   type RemoteKey,
   captureScreen,
   closeRemote,
@@ -73,7 +85,7 @@ export function Remote() {
 
   const send = async (key: RemoteKey) => {
     try {
-      await pressKey(serial(), key);
+      await (isLive(serial()) ? liveKey(serial(), key) : pressKey(serial(), key));
       setError(null);
     } catch (failure) {
       setError(describeError(failure));
@@ -215,19 +227,108 @@ function KeyButton(props: KeyButtonProps) {
   );
 }
 
-/** Live view: requests the next capture as soon as the previous one arrives, while visible. */
+/** Which TVs have a live scrcpy session, so keys, text and taps take the fast path. */
+const live = createRoot(() => {
+  const [serials, setSerials] = createSignal<Record<string, boolean>>({});
+  return { serials, setSerials };
+});
+
+function isLive(serial: string): boolean {
+  return live.serials()[serial] === true;
+}
+
+function setLive(serial: string, value: boolean): void {
+  live.setSerials((current) => ({ ...current, [serial]: value }));
+}
+
+/** Live video quality, remembered across launches. */
+const quality = createRoot(() => {
+  const [value, setValue] = createSignal<Quality>(readChoice(STORAGE_KEYS.remoteQuality, QUALITIES, "smooth"));
+  const choose = (next: Quality) => {
+    setValue(next);
+    writeStored(STORAGE_KEYS.remoteQuality, next);
+  };
+  return { value, choose };
+});
+
+/** WebCodecs H.264 support, checked once per launch. */
+const liveSupport = createRoot(() => {
+  const [supported] = createResource(canPlayLive);
+  return supported;
+});
+
+type ScreenMode = "live" | "captures";
+
+/**
+ * TV screen. Live video through scrcpy when this webview can decode H.264; otherwise, or when the
+ * stream fails, screenshots taken one after another. Stops while hidden, paused or disconnected.
+ */
 function Screen(props: { serial: string; connected: boolean }) {
+  const [mode, setMode] = createSignal<ScreenMode>("live");
+  const [fallbackNotice, setFallbackNotice] = createSignal<string | null>(null);
   const [playing, setPlaying] = createSignal(true);
   const [pageVisible, setPageVisible] = createSignal(!document.hidden);
+  const [liveDrawing, setLiveDrawing] = createSignal(false);
   const [frame, setFrame] = createSignal<string | null>(null);
   const [error, setError] = createSignal<string | null>(null);
   const [saved, setSaved] = createSignal(false);
+  let canvas: HTMLCanvasElement | undefined;
   let image: HTMLImageElement | undefined;
   let inFlight = false;
   let disposed = false;
+  let stopLive: (() => Promise<void>) | null = null;
+  // Bumped whenever the live session should change, so a slow start that lost the race is undone.
+  let liveRun = 0;
 
   const shouldRun = () => playing() && pageVisible() && props.connected;
+  const wantsLive = () => mode() === "live" && liveSupport() === true;
+  const capturing = () => shouldRun() && (mode() === "captures" || liveSupport() === false);
 
+  const stopCurrentLive = async () => {
+    const stop = stopLive;
+    stopLive = null;
+    setLive(props.serial, false);
+    setLiveDrawing(false);
+    if (stop) await stop().catch(() => undefined);
+  };
+
+  const fallBack = (notice: string) => {
+    liveRun += 1;
+    void stopCurrentLive();
+    setFallbackNotice(notice);
+    setMode("captures");
+  };
+
+  createEffect(
+    on([() => props.serial, shouldRun, wantsLive, quality.value], ([serial, run, liveWanted, preset]) => {
+      liveRun += 1;
+      const thisRun = liveRun;
+      void (async () => {
+        await stopCurrentLive();
+        if (!run || !liveWanted || !canvas || thisRun !== liveRun) return;
+        try {
+          const stop = await startLive(serial, preset, canvas, {
+            onSize: () => undefined,
+            onFirstFrame: () => setLiveDrawing(true),
+            onFailure: () => {
+              if (thisRun === liveRun) fallBack(t("remote.liveFailed"));
+            },
+          });
+          if (thisRun !== liveRun || disposed) {
+            await stop().catch(() => undefined);
+            return;
+          }
+          stopLive = stop;
+          setLive(serial, true);
+          setFallbackNotice(null);
+        } catch {
+          if (thisRun === liveRun) fallBack(t("remote.liveFailed"));
+        }
+      })();
+    }),
+  );
+
+  // Screenshot mode.
   const replaceFrame = (url: string | null) => {
     const old = frame();
     if (old) URL.revokeObjectURL(old);
@@ -235,7 +336,7 @@ function Screen(props: { serial: string; connected: boolean }) {
   };
 
   const tick = async () => {
-    if (inFlight || disposed || !shouldRun()) return;
+    if (inFlight || disposed || !capturing()) return;
     inFlight = true;
     const serial = props.serial;
     try {
@@ -251,14 +352,14 @@ function Screen(props: { serial: string; connected: boolean }) {
     } finally {
       inFlight = false;
     }
-    if (shouldRun()) window.setTimeout(() => void tick(), CAPTURE_GAP_MS);
+    if (capturing()) window.setTimeout(() => void tick(), CAPTURE_GAP_MS);
   };
 
   createEffect(() => {
-    if (shouldRun()) void tick();
+    if (capturing()) void tick();
   });
 
-  // A new TV starts with a clean view.
+  // A new TV starts with a clean view and tries live video again.
   createEffect(
     on(
       () => props.serial,
@@ -266,6 +367,8 @@ function Screen(props: { serial: string; connected: boolean }) {
         replaceFrame(null);
         setSaved(false);
         setPlaying(true);
+        setMode("live");
+        setFallbackNotice(null);
       },
       { defer: true },
     ),
@@ -279,25 +382,38 @@ function Screen(props: { serial: string; connected: boolean }) {
 
   onCleanup(() => {
     disposed = true;
+    liveRun += 1;
+    void stopCurrentLive();
     replaceFrame(null);
   });
 
+  /** Maps a click on a letterboxed (object-fit: contain) picture to its pixel coordinates. */
+  const pointOn = (event: MouseEvent, element: Element, width: number, height: number) => {
+    if (width === 0 || height === 0) return null;
+    const bounds = element.getBoundingClientRect();
+    const scale = Math.min(bounds.width / width, bounds.height / height);
+    const x = Math.round((event.clientX - bounds.left - (bounds.width - width * scale) / 2) / scale);
+    const y = Math.round((event.clientY - bounds.top - (bounds.height - height * scale) / 2) / scale);
+    return x < 0 || y < 0 || x >= width || y >= height ? null : { x, y };
+  };
+
+  const onCanvasClick = (event: MouseEvent) => {
+    if (!canvas) return;
+    const point = pointOn(event, canvas, canvas.width, canvas.height);
+    if (point) liveTap(props.serial, point.x, point.y).catch((failure: unknown) => setError(describeError(failure)));
+  };
+
   const onImageClick = (event: MouseEvent) => {
-    if (!image || image.naturalWidth === 0) return;
-    // object-fit: contain letterboxes the frame; map the click into the drawn picture only.
-    const bounds = image.getBoundingClientRect();
-    const scale = Math.min(bounds.width / image.naturalWidth, bounds.height / image.naturalHeight);
-    const offsetX = (bounds.width - image.naturalWidth * scale) / 2;
-    const offsetY = (bounds.height - image.naturalHeight * scale) / 2;
-    const x = Math.round((event.clientX - bounds.left - offsetX) / scale);
-    const y = Math.round((event.clientY - bounds.top - offsetY) / scale);
-    if (x < 0 || y < 0 || x >= image.naturalWidth || y >= image.naturalHeight) return;
-    tap(props.serial, x, y).catch((failure: unknown) => setError(describeError(failure)));
+    if (!image) return;
+    const point = pointOn(event, image, image.naturalWidth, image.naturalHeight);
+    if (point) tap(props.serial, point.x, point.y).catch((failure: unknown) => setError(describeError(failure)));
   };
 
   const save = async () => {
     setSaved(false);
     try {
+      // The live stream is video, not a picture: take one full-quality screenshot to save.
+      if (mode() === "live") await captureScreen(props.serial);
       setSaved(await saveCapture(props.serial));
       setError(null);
     } catch (failure) {
@@ -305,20 +421,22 @@ function Screen(props: { serial: string; connected: boolean }) {
     }
   };
 
+  const showsLive = () => wantsLive() && mode() === "live";
+
   return (
     <div class={styles.screen}>
-      <div class={styles.viewport} aria-busy={shouldRun() && !frame()}>
-        <Show
-          when={frame()}
-          fallback={
-            <div class={styles.placeholder}>
-              <Monitor />
-              <p>{props.connected ? t("remote.loadingScreen") : t("remote.notConnected")}</p>
-            </div>
-          }
-        >
+      <div class={styles.viewport} aria-busy={shouldRun() && !liveDrawing() && !frame()}>
+        {/* Taps are a pointer-only extra: the D-pad and keyboard cover every action. */}
+        <canvas
+          ref={canvas}
+          class={styles.frame}
+          classList={{ [styles.hidden]: !(showsLive() && liveDrawing()) }}
+          title={t("remote.tapHint")}
+          aria-label={t("remote.screenAlt")}
+          onClick={onCanvasClick}
+        />
+        <Show when={!showsLive() && frame()}>
           {(url) => (
-            // Taps are a pointer-only extra: the D-pad and keyboard cover every action.
             <img
               ref={image}
               class={styles.frame}
@@ -330,6 +448,12 @@ function Screen(props: { serial: string; connected: boolean }) {
             />
           )}
         </Show>
+        <Show when={!(showsLive() && liveDrawing()) && !(!showsLive() && frame())}>
+          <div class={styles.placeholder}>
+            <Monitor />
+            <p>{props.connected ? t("remote.loadingScreen") : t("remote.notConnected")}</p>
+          </div>
+        </Show>
       </div>
       <div class={styles.screenBar}>
         <Button variant="ghost" onClick={() => setPlaying(!playing())} disabled={!props.connected}>
@@ -338,12 +462,33 @@ function Screen(props: { serial: string; connected: boolean }) {
           </Show>
           {playing() ? t("remote.pause") : t("remote.resume")}
         </Button>
-        <Button variant="ghost" onClick={save} disabled={!frame()}>
+        <Button variant="ghost" onClick={save} disabled={!props.connected}>
           <Download />
           {t("remote.save")}
         </Button>
+        <Show when={showsLive()}>
+          <Segmented
+            name="remote-quality"
+            label={t("remote.quality")}
+            value={quality.value()}
+            options={[
+              { value: "smooth", label: t("remote.qualitySmooth") },
+              { value: "sharp", label: t("remote.qualitySharp") },
+              { value: "max", label: t("remote.qualityMax") },
+            ]}
+            onChange={quality.choose}
+          />
+        </Show>
+        <Show when={mode() === "captures" && liveSupport() === true}>
+          <Button variant="ghost" onClick={() => setMode("live")}>
+            {t("remote.retryLive")}
+          </Button>
+        </Show>
         <p class={styles.screenStatus} role="status">
-          {error() ?? (saved() ? t("remote.saved") : "")}
+          {error() ??
+            (saved()
+              ? t("remote.saved")
+              : (fallbackNotice() ?? (liveSupport() === false ? t("remote.capturesOnly") : "")))}
         </p>
       </div>
     </div>
@@ -361,14 +506,16 @@ function TextForm(props: { serial: string }) {
   const setText = (value: string) => drafts.setAll((current) => ({ ...current, [props.serial]: value }));
   const [pending, setPending] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
-  const valid = () => text() === "" || isTypeable(text());
+  // Live sessions type any Unicode; the screenshot fallback goes through `input text` (ASCII only).
+  const fits = (value: string) => (isLive(props.serial) ? fitsLiveText(value) : isTypeable(value));
+  const valid = () => text() === "" || fits(text());
 
   const submit = async (event: SubmitEvent) => {
     event.preventDefault();
-    if (!isTypeable(text())) return;
+    if (!fits(text())) return;
     setPending(true);
     try {
-      await typeText(props.serial, text());
+      await (isLive(props.serial) ? liveText(props.serial, text()) : typeText(props.serial, text()));
       setText("");
       setError(null);
     } catch (failure) {
@@ -389,7 +536,7 @@ function TextForm(props: { serial: string }) {
           class={styles.input}
           autocomplete="off"
           spellcheck={false}
-          maxlength={MAX_TEXT_LENGTH}
+          maxlength={MAX_LIVE_TEXT_BYTES}
           placeholder={t("remote.typePlaceholder")}
           value={text()}
           onInput={(event) => setText(event.currentTarget.value)}
@@ -402,7 +549,12 @@ function TextForm(props: { serial: string }) {
         </Button>
       </div>
       <p id={TEXT_MESSAGE_ID} class={valid() && !error() ? styles.hint : styles.error}>
-        {error() ?? (valid() ? t("remote.typeHint") : t("errors.invalidText"))}
+        {error() ??
+          (valid()
+            ? isLive(props.serial)
+              ? t("remote.typeHintLive")
+              : t("remote.typeHint")
+            : t("errors.invalidText"))}
       </p>
     </form>
   );

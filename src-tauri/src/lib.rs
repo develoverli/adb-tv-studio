@@ -41,6 +41,11 @@ pub fn run() -> tauri::Result<()> {
             adb::install::install_inspect,
             adb::install::install_icon,
             adb::install::install_run,
+            adb::scrcpy::scrcpy_start,
+            adb::scrcpy::scrcpy_stop,
+            adb::scrcpy::scrcpy_key,
+            adb::scrcpy::scrcpy_text,
+            adb::scrcpy::scrcpy_tap,
         ])
         .build(tauri::generate_context!())?;
 

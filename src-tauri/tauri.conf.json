@@ -22,7 +22,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; img-src 'self' asset: data:; style-src 'self' 'unsafe-inline'"
+      "csp": "default-src 'self'; img-src 'self' asset: data: blob:; style-src 'self' 'unsafe-inline'"
     }
   },
   "bundle": {
@@ -30,6 +30,10 @@
     "targets": ["nsis", "app", "dmg", "appimage", "deb"],
     "createUpdaterArtifacts": true,
     "externalBin": ["binaries/adb"],
+    "resources": {
+      "binaries/scrcpy-server.jar": "scrcpy-server.jar",
+      "../THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md"
+    },
     "license": "MIT",
     "licenseFile": "../LICENSE",
     "category": "Utility",

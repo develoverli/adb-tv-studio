@@ -22,7 +22,7 @@
     "build": "vite build",
     "serve": "vite preview",
     "typecheck": "tsc --noEmit",
-    "fetch-adb": "node scripts/fetch-adb.mjs",
+    "fetch-sidecars": "node scripts/fetch-sidecars.mjs",
     "prepare": "git config core.hooksPath .githooks",
     "tauri": "tauri"
   },

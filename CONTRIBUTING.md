@@ -26,11 +26,11 @@ For larger changes, open an issue first to agree on the approach.
 git clone https://github.com/develoverli/adb-tv-studio.git
 cd adb-tv-studio
 pnpm install
-pnpm fetch-adb      # downloads and verifies adb for your platform into src-tauri/binaries/
+pnpm fetch-sidecars # downloads and verifies adb and scrcpy-server into src-tauri/binaries/
 pnpm tauri dev      # runs the app with hot reload
 ```
 
-`pnpm fetch-adb` must run once before the first Rust build: `tauri-build` refuses to compile if the `adb` sidecar is missing.
+`pnpm fetch-sidecars` must run once before the first Rust build: `tauri-build` refuses to compile if the `adb` sidecar or the scrcpy-server resource is missing.
 
 The TV list comes from the bundled adb (its own server on port 5038, so it does not clash with another adb on 5037). To design screens without a TV, load two sample TVs (`src/dev/mockDevices.ts`) instead. They are never part of a release build:
 
@@ -66,7 +66,7 @@ src/                 SolidJS + TypeScript frontend
 src-tauri/           Rust backend (Tauri 2)
   binaries/          adb sidecar (generated, git-ignored)
   capabilities/      Tauri permission sets
-scripts/fetch-adb.mjs  downloads platform-tools with a pinned SHA-256
+scripts/fetch-sidecars.mjs  downloads platform-tools and scrcpy-server with pinned SHA-256s
 ```
 
 ## Coding guidelines
@@ -111,6 +111,10 @@ Releases are automated with [release-please](https://github.com/googleapis/relea
 
 Contributors never bump versions or create tags by hand. Each release adds a commit to `main`, so run `git pull --rebase` before your next push.
 
+## Updating scrcpy-server
+
+Bump `SCRCPY_VERSION` and `SCRCPY_SHA256` in `scripts/fetch-sidecars.mjs` and `SCRCPY_VERSION` in `src-tauri/src/adb/scrcpy.rs` together: the server refuses a client with another version string. The protocol changes between releases, so re-check `doc/develop.md` of the new tag.
+
 ## Updating adb
 
-Bump `PLATFORM_TOOLS_VERSION` and the three SHA-256 values in `scripts/fetch-adb.mjs`. Cross-check the archives against the SHA-1 values Google publishes in `https://dl.google.com/android/repository/repository2-3.xml`.
+Bump `PLATFORM_TOOLS_VERSION` and the three SHA-256 values in `scripts/fetch-sidecars.mjs`. Cross-check the archives against the SHA-1 values Google publishes in `https://dl.google.com/android/repository/repository2-3.xml`.

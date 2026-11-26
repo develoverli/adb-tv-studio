@@ -86,7 +86,7 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - run: pnpm fetch-adb --target ${{ matrix.target }}
+      - run: pnpm fetch-sidecars --target ${{ matrix.target }}
 
       - uses: tauri-apps/tauri-action@v1
         env:

@@ -2,6 +2,7 @@
 export const STORAGE_KEYS = {
   theme: "adbtv.theme",
   locale: "adbtv.locale",
+  remoteQuality: "adbtv.remoteQuality",
 } as const;
 
 /** Reads a value; storage can throw (blocked / private mode), so failures fall back to null. */

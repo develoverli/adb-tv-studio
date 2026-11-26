@@ -1,12 +1,15 @@
 #!/usr/bin/env node
-// Downloads the official Android platform-tools from Google, verifies the
-// pinned SHA-256, and places `adb` where Tauri expects a sidecar binary:
-//   src-tauri/binaries/adb-<target-triple>[.exe]
-// On Windows the two DLLs adb needs are copied next to it as well.
+// Downloads the third-party files the app bundles, each verified against a pinned SHA-256:
+//   - adb from the official Android platform-tools, placed where Tauri expects a sidecar:
+//       src-tauri/binaries/adb-<target-triple>[.exe]
+//     On Windows the two DLLs adb needs are copied next to it as well.
+//   - scrcpy-server (pushed to the TV for live video and fast input), bundled as a resource:
+//       src-tauri/binaries/scrcpy-server.jar
+//     It runs on the TV, so the same file serves every target.
 //
 // Usage:
-//   node scripts/fetch-adb.mjs                 # host target (from `rustc -vV`)
-//   node scripts/fetch-adb.mjs --target <triple>
+//   node scripts/fetch-sidecars.mjs                 # host target (from `rustc -vV`)
+//   node scripts/fetch-sidecars.mjs --target <triple>
 //
 // Extraction uses the system `tar` on Windows (bsdtar reads .zip) and `unzip`
 // elsewhere, so the script has no npm dependencies.
@@ -39,6 +42,13 @@ const ARCHIVES = {
   },
 };
 
+/**
+ * scrcpy-server release. The app starts it with this exact version string and the server refuses
+ * any other, so bump SCRCPY_VERSION in src-tauri/src/adb/scrcpy.rs together with these two.
+ */
+const SCRCPY_VERSION = "5.0.1";
+const SCRCPY_SHA256 = "764eb6f79811d5211fe9df341120882ba9994c7a61b897d7bf3fb662e53bc536";
+
 const SUPPORTED_TARGETS = {
   "x86_64-pc-windows-msvc": "win",
   "aarch64-pc-windows-msvc": "win",
@@ -50,9 +60,10 @@ const SUPPORTED_TARGETS = {
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const binariesDir = join(repoRoot, "src-tauri", "binaries");
 const cacheDir = join(repoRoot, ".cache", "platform-tools");
+const scrcpyCacheDir = join(repoRoot, ".cache", "scrcpy");
 
 function fail(message) {
-  console.error(`fetch-adb: ${message}`);
+  console.error(`fetch-sidecars: ${message}`);
   process.exit(1);
 }
 
@@ -79,12 +90,12 @@ async function loadArchive(os) {
   const cachedPath = join(cacheDir, fileName);
 
   if (existsSync(cachedPath) && sha256(readFileSync(cachedPath)) === expected) {
-    console.log(`fetch-adb: using cached ${fileName}`);
+    console.log(`fetch-sidecars: using cached ${fileName}`);
     return cachedPath;
   }
 
   const url = `${DOWNLOAD_BASE_URL}/${fileName}`;
-  console.log(`fetch-adb: downloading ${url}`);
+  console.log(`fetch-sidecars: downloading ${url}`);
   const response = await fetch(url);
   if (!response.ok) fail(`download failed: HTTP ${response.status}`);
   const buffer = Buffer.from(await response.arrayBuffer());
@@ -106,6 +117,37 @@ function extract(archivePath, destination) {
   } else {
     execFileSync("unzip", ["-q", "-o", archivePath, "-d", destination], { stdio: "inherit" });
   }
+}
+
+async function downloadVerified(url, expected, label) {
+  console.log(`fetch-sidecars: downloading ${url}`);
+  const response = await fetch(url);
+  if (!response.ok) fail(`download failed: HTTP ${response.status}`);
+  const buffer = Buffer.from(await response.arrayBuffer());
+  const actual = sha256(buffer);
+  if (actual !== expected) fail(`checksum mismatch for ${label}
+  expected ${expected}
+  actual   ${actual}`);
+  return buffer;
+}
+
+async function fetchScrcpyServer() {
+  const fileName = `scrcpy-server-v${SCRCPY_VERSION}`;
+  const cachedPath = join(scrcpyCacheDir, fileName);
+  let buffer;
+  if (existsSync(cachedPath) && sha256(readFileSync(cachedPath)) === SCRCPY_SHA256) {
+    console.log(`fetch-sidecars: using cached ${fileName}`);
+    buffer = readFileSync(cachedPath);
+  } else {
+    const url = `https://github.com/Genymobile/scrcpy/releases/download/v${SCRCPY_VERSION}/${fileName}`;
+    buffer = await downloadVerified(url, SCRCPY_SHA256, fileName);
+    mkdirSync(scrcpyCacheDir, { recursive: true });
+    writeFileSync(cachedPath, buffer);
+  }
+  mkdirSync(binariesDir, { recursive: true });
+  const destination = join(binariesDir, "scrcpy-server.jar");
+  writeFileSync(destination, buffer);
+  console.log(`fetch-sidecars: wrote ${destination}`);
 }
 
 async function main() {
@@ -130,11 +172,13 @@ async function main() {
 
       copyFileSync(source, destination);
       if (isAdb && os !== "win") chmodSync(destination, 0o755);
-      console.log(`fetch-adb: wrote ${destination}`);
+      console.log(`fetch-sidecars: wrote ${destination}`);
     }
   } finally {
     rmSync(workDir, { recursive: true, force: true });
   }
+
+  await fetchScrcpyServer();
 }
 
 await main();

@@ -10,6 +10,8 @@ mod install_parse;
 mod parse;
 pub mod remote;
 mod scan;
+pub mod scrcpy;
+mod scrcpy_proto;
 pub mod screen;
 mod tracker;
 
@@ -173,6 +175,7 @@ pub fn init(app: &AppHandle) {
     app.manage(remote::RemoteState::default());
     app.manage(screen::ScreenState::default());
     app.manage(install::InstallState::default());
+    app.manage(scrcpy::ScrcpyState::default());
     tracker::start(app.clone());
 }
 

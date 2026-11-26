@@ -65,7 +65,7 @@ jobs:
 
       # tauri-build needs the frontend dist folder and the adb sidecar to exist at compile time.
       - run: pnpm build
-      - run: pnpm fetch-adb
+      - run: pnpm fetch-sidecars
 
       - name: cargo fmt
         working-directory: src-tauri

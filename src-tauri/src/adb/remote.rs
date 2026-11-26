@@ -34,7 +34,7 @@ pub enum RemoteKey {
 
 impl RemoteKey {
     /// Android `KeyEvent` code.
-    const fn keycode(self) -> u16 {
+    pub(super) const fn keycode(self) -> u16 {
         match self {
             Self::Home => 3,
             Self::Back => 4,
