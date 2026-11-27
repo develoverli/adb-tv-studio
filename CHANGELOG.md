@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.1.3](https://github.com/develoverli/adb-tv-studio/compare/v0.1.2...v0.1.3) (2026-11-27)
+
+
+### Features
+
+* **add:** ✨ open the TV's Overview right after connecting it ([84318b4](https://github.com/develoverli/adb-tv-studio/commit/84318b41548edc878ac2dad656609295953887f1))
+* **themes:** ✨ preview themes as a faithful replica of the TV home screen, with a large view ([84318b4](https://github.com/develoverli/adb-tv-studio/commit/84318b41548edc878ac2dad656609295953887f1))
+* **themes:** ✨ refine the bundled themes with contrast-checked palettes (noche, grafito, alto contraste) ([84318b4](https://github.com/develoverli/adb-tv-studio/commit/84318b41548edc878ac2dad656609295953887f1))
+* **updates:** ✨ check for app updates at launch and install them from Settings ([84318b4](https://github.com/develoverli/adb-tv-studio/commit/84318b41548edc878ac2dad656609295953887f1))
+
+
+### Bug Fixes
+
+* **build:** 🐛 use the app icon for the Windows installer instead of the NSIS default ([84318b4](https://github.com/develoverli/adb-tv-studio/commit/84318b41548edc878ac2dad656609295953887f1))
+
 ## [0.1.2](https://github.com/develoverli/adb-tv-studio/compare/v0.1.1...v0.1.2) (2026-11-27)
 
 
