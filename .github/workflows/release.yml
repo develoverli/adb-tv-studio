@@ -34,17 +34,20 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
+      # The PR JSON is parsed in the shell: a fromJSON() in env fails on runs that open no PR.
       - name: Merge release PR
-        if: steps.release.outputs.pr
+        if: steps.release.outputs.pr != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ fromJSON(steps.release.outputs.pr).number }}
+          PR_JSON: ${{ steps.release.outputs.pr }}
           REPO: ${{ github.repository }}
-        run: gh pr merge "$PR_NUMBER" --repo "$REPO" --squash --delete-branch
+        run: |
+          number=$(printf '%s' "$PR_JSON" | jq -r .number)
+          gh pr merge "$number" --repo "$REPO" --squash --delete-branch
 
       # Only creates the tag and GitHub release for the PR merged above; never opens a new PR.
       - id: publish
-        if: steps.release.outputs.pr
+        if: steps.release.outputs.pr != ''
         uses: googleapis/release-please-action@v5
         with:
           config-file: release-please-config.json
@@ -88,7 +91,9 @@ jobs:
   build:
     name: Build (${{ matrix.target }})
     needs: target
-    if: needs.target.outputs.build == 'true'
+    # !cancelled() is needed: release-please is skipped on manual runs, and a skipped job up the
+    # chain would otherwise skip this one too.
+    if: ${{ !cancelled() && needs.target.outputs.build == 'true' }}
     strategy:
       fail-fast: false
       matrix:
