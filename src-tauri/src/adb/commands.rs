@@ -2,7 +2,7 @@
 
 use super::parse::{self, ConnectStatus, MdnsKind, MdnsService};
 use super::scan;
-use super::{AdbError, AdbState, Device, run};
+use super::{AdbError, AdbState, Device, run, tracker};
 use serde::Serialize;
 use tauri::{AppHandle, State};
 
@@ -126,7 +126,8 @@ pub async fn adb_pair(
     Ok(PairResult { connection })
 }
 
-/// Disconnects a TV from the current list.
+/// Disconnects a TV from the current list. A saved TV stays listed but is no longer
+/// reconnected automatically until the user reconnects it.
 #[tauri::command]
 pub async fn adb_disconnect(
     app: AppHandle,
@@ -134,8 +135,31 @@ pub async fn adb_disconnect(
     serial: String,
 ) -> Result<(), AdbError> {
     state.require_device(&serial)?;
+    set_auto_reconnect(&state, &serial, false);
     let output = run(&app, &["disconnect", &serial]).await?;
     parse::disconnect_outcome(&output.text())
+}
+
+/// Removes a saved TV and disconnects it.
+#[tauri::command]
+pub async fn adb_forget(
+    app: AppHandle,
+    state: State<'_, AdbState>,
+    serial: String,
+) -> Result<(), AdbError> {
+    {
+        let mut saved = state.saved();
+        if !saved.forget(&serial) {
+            return Err(AdbError::UnknownDevice(serial));
+        }
+        saved.save_or_report();
+    }
+    tracker::emit_devices(&app);
+    // It may not be connected at all; forgetting it already succeeded.
+    if let Err(error) = run(&app, &["disconnect", &serial]).await {
+        eprintln!("disconnect after forget failed: {error}");
+    }
+    Ok(())
 }
 
 /// Drops a stuck (offline) connection and connects again to the same address.
@@ -146,6 +170,7 @@ pub async fn adb_reconnect(
     serial: String,
 ) -> Result<ConnectStatus, AdbError> {
     state.require_device(&serial)?;
+    set_auto_reconnect(&state, &serial, true);
     // Only `ip:port` serials can be reconnected by address; mDNS names cannot.
     let address = parse::address(&serial, None)?;
     // The old transport may already be gone; a failed disconnect must not block the new connect.
@@ -155,12 +180,20 @@ pub async fn adb_reconnect(
     connect(&app, &address).await
 }
 
-async fn connect(app: &AppHandle, address: &str) -> Result<ConnectStatus, AdbError> {
+/// Turns auto-reconnect on or off for a saved TV and saves it; nothing happens for other TVs.
+fn set_auto_reconnect(state: &AdbState, serial: &str, enabled: bool) {
+    let mut saved = state.saved();
+    if saved.set_auto_reconnect(serial, enabled) {
+        saved.save_or_report();
+    }
+}
+
+pub(super) async fn connect(app: &AppHandle, address: &str) -> Result<ConnectStatus, AdbError> {
     let output = run(app, &["connect", address]).await?;
     parse::connect_outcome(&output.text())
 }
 
-async fn mdns_services(app: &AppHandle) -> Result<Vec<MdnsService>, AdbError> {
+pub(super) async fn mdns_services(app: &AppHandle) -> Result<Vec<MdnsService>, AdbError> {
     let output = run(app, &["mdns", "services"]).await?;
     if output.success {
         Ok(parse::mdns_services(&output.stdout))

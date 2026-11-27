@@ -30,6 +30,7 @@ tauri-plugin-shell = "2"
 if-addrs = "0.15.0"
 tauri-plugin-dialog = "2"
 apk-info = "1.1.1"
+zip = { version = "9", default-features = false, features = ["deflate-flate2"] }
 
 [lints.rust]
 future-incompatible = { level = "warn", priority = -1 }

@@ -204,13 +204,15 @@ pub struct DeviceInfo {
     pub manufacturer: Option<String>,
     pub model: Option<String>,
     pub android_version: Option<String>,
+    /// `ro.serialno`, used to recognise a saved TV after its address changes.
+    pub serial_number: Option<String>,
 }
 
 /// Shell script whose output `device_info` parses: one `key=value` line per fact.
 ///
 /// Keys make the parse independent of blank lines, carriage returns or extra output some TVs print,
 /// which shifted values when they were read by position.
-pub const INFO_SCRIPT: &str = "echo \"manufacturer=$(getprop ro.product.manufacturer)\"; echo \"model=$(getprop ro.product.model)\"; echo \"android=$(getprop ro.build.version.release)\"; echo \"name=$(settings get global device_name)\"";
+pub const INFO_SCRIPT: &str = "echo \"manufacturer=$(getprop ro.product.manufacturer)\"; echo \"model=$(getprop ro.product.model)\"; echo \"android=$(getprop ro.build.version.release)\"; echo \"name=$(settings get global device_name)\"; echo \"serial=$(getprop ro.serialno)\"";
 
 /// Parses the output of [`INFO_SCRIPT`]. Unknown lines are ignored; empty and `null` values are `None`.
 pub fn device_info(output: &str) -> DeviceInfo {
@@ -226,6 +228,7 @@ pub fn device_info(output: &str) -> DeviceInfo {
             "model" => info.model = value,
             "android" => info.android_version = value,
             "name" => info.name = value,
+            "serial" => info.serial_number = value,
             _ => {}
         }
     }
@@ -504,6 +507,7 @@ name=Living room
                 manufacturer: Some("Google".to_owned()),
                 model: Some("Chromecast".to_owned()),
                 android_version: Some("14".to_owned()),
+                serial_number: None,
             }
         );
     }

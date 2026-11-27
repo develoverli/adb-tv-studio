@@ -14,11 +14,13 @@ export interface AppEntry {
   system: boolean;
   disabled: boolean;
   launcher: boolean;
+  /** Can be the default launcher (HOME). */
+  home: boolean;
   details: AppDetails | null;
 }
 
 /** Mirrors `AppAction` in src-tauri/src/adb/apps.rs. */
-export type AppAction = "open" | "forceStop" | "clearData" | "uninstall" | "disable" | "enable";
+export type AppAction = "open" | "forceStop" | "clearData" | "uninstall" | "disable" | "enable" | "setHome";
 
 export function listApps(serial: string): Promise<AppEntry[]> {
   return invoke<AppEntry[]>("apps_list", { serial });

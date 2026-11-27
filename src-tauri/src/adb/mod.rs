@@ -7,17 +7,25 @@ pub mod commands;
 mod error;
 pub mod install;
 mod install_parse;
+pub mod launcher;
+mod launcher_parse;
 mod parse;
+mod reconnect;
 pub mod remote;
+mod saved;
 mod scan;
 pub mod scrcpy;
 mod scrcpy_proto;
 pub mod screen;
+pub mod themes;
+mod themes_parse;
 mod tracker;
+pub mod tv_launcher;
 
 pub use error::AdbError;
 
 use parse::{DeviceInfo, DeviceStatus};
+use saved::SavedTvs;
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -45,6 +53,8 @@ pub struct Device {
     pub android_version: Option<String>,
     pub address: String,
     pub status: DeviceStatus,
+    /// Remembered in `devices.json`: listed while offline and reconnected automatically.
+    pub saved: bool,
 }
 
 /// Shared backend state, managed by Tauri.
@@ -59,6 +69,9 @@ pub struct AdbState {
     info: Mutex<HashMap<String, DeviceInfo>>,
     /// Serials with an info read in flight, so a TV is never read twice at once.
     pending: Mutex<HashSet<String>>,
+    /// TVs remembered across launches. Lock it last (after `devices`, `entries`, `info`) and never
+    /// hold it while taking those, so the locks are always taken in the same order.
+    saved: Mutex<SavedTvs>,
     /// Set on app exit so the tracker does not restart the server we are killing.
     shutting_down: AtomicBool,
 }
@@ -79,6 +92,10 @@ impl AdbState {
 
     fn pending(&self) -> MutexGuard<'_, HashSet<String>> {
         self.pending.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn saved(&self) -> MutexGuard<'_, SavedTvs> {
+        self.saved.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
     fn is_shutting_down(&self) -> bool {
@@ -171,12 +188,23 @@ async fn run(app: &AppHandle, args: &[&str]) -> Result<CommandOutput, AdbError> 
 
 /// Registers the state and starts watching devices. Call from `setup`.
 pub fn init(app: &AppHandle) {
-    app.manage(AdbState::default());
+    let saved = match app.path().app_config_dir() {
+        Ok(directory) => SavedTvs::load(directory.join(saved::FILE_NAME)),
+        Err(error) => {
+            eprintln!("no config directory, saved TVs are not kept: {error}");
+            SavedTvs::default()
+        }
+    };
+    app.manage(AdbState {
+        saved: Mutex::new(saved),
+        ..AdbState::default()
+    });
     app.manage(remote::RemoteState::default());
     app.manage(screen::ScreenState::default());
     app.manage(install::InstallState::default());
     app.manage(scrcpy::ScrcpyState::default());
     tracker::start(app.clone());
+    reconnect::start(app.clone());
 }
 
 /// Stops our adb server on app exit. Blocking, so the process is gone before the app is.

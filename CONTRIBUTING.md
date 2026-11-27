@@ -115,6 +115,10 @@ Contributors never bump versions or create tags by hand. Each release adds a com
 
 Bump `SCRCPY_VERSION` and `SCRCPY_SHA256` in `scripts/fetch-sidecars.mjs` and `SCRCPY_VERSION` in `src-tauri/src/adb/scrcpy.rs` together: the server refuses a client with another version string. The protocol changes between releases, so re-check `doc/develop.md` of the new tag.
 
+## Updating tv-launcher
+
+The app bundles tv-launcher (`src-tauri/launcher/tv-launcher.apk`) and installs it on TVs from the Themes and Launcher screens. After a tv-launcher release (tag `vX.Y.Z` in its repo, signed by its CI), set `TV_LAUNCHER_VERSION` and `TV_LAUNCHER_SHA256` in `scripts/fetch-sidecars.mjs`; the checksum is in the release's `.sha256` asset. While `TV_LAUNCHER_SHA256` is `null` the APK is skipped and the app builds without it. To try a local build instead: `TV_LAUNCHER_APK=/path/to.apk pnpm fetch-sidecars`. Themes need tv-launcher `versionCode` 2 or later (`MIN_THEMES_VERSION_CODE` in `src-tauri/src/adb/tv_launcher.rs`).
+
 ## Updating adb
 
 Bump `PLATFORM_TOOLS_VERSION` and the three SHA-256 values in `scripts/fetch-sidecars.mjs`. Cross-check the archives against the SHA-1 values Google publishes in `https://dl.google.com/android/repository/repository2-3.xml`.

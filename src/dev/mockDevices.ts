@@ -9,6 +9,7 @@ export const MOCK_DEVICES: Device[] = [
     androidVersion: "14",
     address: "192.168.1.50:5555",
     status: "connected",
+    saved: true,
   },
   {
     id: "192.168.1.73:5555",
@@ -17,5 +18,6 @@ export const MOCK_DEVICES: Device[] = [
     androidVersion: "12",
     address: "192.168.1.73:5555",
     status: "offline",
+    saved: true,
   },
 ];

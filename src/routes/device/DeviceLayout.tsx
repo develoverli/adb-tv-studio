@@ -1,13 +1,15 @@
 import { A, type RouteSectionProps, useNavigate, useParams } from "@solidjs/router";
 import LoaderCircle from "lucide-solid/icons/loader-circle";
 import RefreshCw from "lucide-solid/icons/refresh-cw";
+import Trash from "lucide-solid/icons/trash";
 import Unplug from "lucide-solid/icons/unplug";
 import { For, Show, createSignal } from "solid-js";
 import { Button } from "../../components/Button";
+import { confirmAction } from "../../components/ConfirmDialog";
 import { EmptyState } from "../../components/EmptyState";
 import { StatusDot } from "../../components/StatusDot";
 import { t } from "../../i18n";
-import { describeError, disconnect, reconnect } from "../../lib/adb";
+import { describeError, disconnect, forget, reconnect } from "../../lib/adb";
 import { findDevice } from "../../lib/devices";
 import { isInstalling } from "../../lib/installQueue";
 import styles from "./DeviceLayout.module.css";
@@ -26,8 +28,9 @@ export function DeviceLayout(props: RouteSectionProps) {
   const navigate = useNavigate();
   const [disconnecting, setDisconnecting] = createSignal(false);
   const [reconnecting, setReconnecting] = createSignal(false);
+  const [forgetting, setForgetting] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
-  const busy = () => disconnecting() || reconnecting();
+  const busy = () => disconnecting() || reconnecting() || forgetting();
 
   const reconnectDevice = async (serial: string) => {
     setReconnecting(true);
@@ -47,12 +50,32 @@ export function DeviceLayout(props: RouteSectionProps) {
     setError(null);
     try {
       await disconnect(serial);
-      // Without saved TVs (next roadmap step) a disconnected TV leaves the list, so leave its page too.
-      navigate("/");
+      // A saved TV stays listed (offline); any other one leaves the list, so leave its page too.
+      if (!findDevice(serial)?.saved) navigate("/");
     } catch (failure) {
       setError(describeError(failure));
     } finally {
       setDisconnecting(false);
+    }
+  };
+
+  const forgetDevice = async (serial: string, name: string) => {
+    const confirmed = await confirmAction({
+      title: t("device.forgetTitle", { name }),
+      body: t("device.forgetBody"),
+      confirmLabel: t("device.forget"),
+      danger: true,
+    });
+    if (!confirmed) return;
+    setForgetting(true);
+    setError(null);
+    try {
+      await forget(serial);
+      navigate("/");
+    } catch (failure) {
+      setError(describeError(failure));
+    } finally {
+      setForgetting(false);
     }
   };
 
@@ -116,6 +139,19 @@ export function DeviceLayout(props: RouteSectionProps) {
                   </Show>
                   {disconnecting() ? t("device.disconnecting") : t("device.disconnect")}
                 </Button>
+                <Show when={current().saved}>
+                  <Button
+                    variant="ghost"
+                    onClick={() => forgetDevice(current().id, current().name)}
+                    disabled={busy()}
+                    aria-describedby="device-disconnect-error"
+                  >
+                    <Show when={forgetting()} fallback={<Trash />}>
+                      <LoaderCircle class={styles.spin} />
+                    </Show>
+                    {forgetting() ? t("device.forgetting") : t("device.forget")}
+                  </Button>
+                </Show>
               </div>
               <p id="device-disconnect-error" class={styles.actionError} role="alert">
                 {error()}

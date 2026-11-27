@@ -6,6 +6,10 @@
 //   - scrcpy-server (pushed to the TV for live video and fast input), bundled as a resource:
 //       src-tauri/binaries/scrcpy-server.jar
 //     It runs on the TV, so the same file serves every target.
+//   - tv-launcher (installed on TVs from the Themes and Launcher screens), bundled as a resource:
+//       src-tauri/launcher/tv-launcher.apk
+//     Taken from the tv-launcher GitHub release. Until TV_LAUNCHER_SHA256 is filled in, it is
+//     skipped with a warning; set TV_LAUNCHER_APK=/path/to.apk to use a local build instead.
 //
 // Usage:
 //   node scripts/fetch-sidecars.mjs                 # host target (from `rustc -vV`)
@@ -49,6 +53,14 @@ const ARCHIVES = {
 const SCRCPY_VERSION = "5.0.1";
 const SCRCPY_SHA256 = "764eb6f79811d5211fe9df341120882ba9994c7a61b897d7bf3fb662e53bc536";
 
+/**
+ * tv-launcher release bundled with the app. Bump both after publishing a tv-launcher release
+ * (its .sha256 asset has the checksum). The app requires versionCode 2+ for themes.
+ */
+const TV_LAUNCHER_VERSION = "1.1.0";
+/** null until the first signed release exists; the launcher is then skipped, not fatal. */
+const TV_LAUNCHER_SHA256 = null;
+
 const SUPPORTED_TARGETS = {
   "x86_64-pc-windows-msvc": "win",
   "aarch64-pc-windows-msvc": "win",
@@ -61,6 +73,8 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const binariesDir = join(repoRoot, "src-tauri", "binaries");
 const cacheDir = join(repoRoot, ".cache", "platform-tools");
 const scrcpyCacheDir = join(repoRoot, ".cache", "scrcpy");
+const launcherDir = join(repoRoot, "src-tauri", "launcher");
+const launcherCacheDir = join(repoRoot, ".cache", "tv-launcher");
 
 function fail(message) {
   console.error(`fetch-sidecars: ${message}`);
@@ -150,6 +164,35 @@ async function fetchScrcpyServer() {
   console.log(`fetch-sidecars: wrote ${destination}`);
 }
 
+async function fetchTvLauncher() {
+  const destination = join(launcherDir, "tv-launcher.apk");
+  const override = process.env.TV_LAUNCHER_APK;
+  if (override) {
+    if (!existsSync(override)) fail(`TV_LAUNCHER_APK points to a missing file: ${override}`);
+    copyFileSync(override, destination);
+    console.log(`fetch-sidecars: wrote ${destination} (from TV_LAUNCHER_APK)`);
+    return;
+  }
+  if (!TV_LAUNCHER_SHA256) {
+    console.warn("fetch-sidecars: skipping tv-launcher (no pinned release yet); the app builds without it");
+    return;
+  }
+  const fileName = `tv-launcher-${TV_LAUNCHER_VERSION}.apk`;
+  const cachedPath = join(launcherCacheDir, fileName);
+  let buffer;
+  if (existsSync(cachedPath) && sha256(readFileSync(cachedPath)) === TV_LAUNCHER_SHA256) {
+    console.log(`fetch-sidecars: using cached ${fileName}`);
+    buffer = readFileSync(cachedPath);
+  } else {
+    const url = `https://github.com/develoverli/tv-launcher/releases/download/v${TV_LAUNCHER_VERSION}/${fileName}`;
+    buffer = await downloadVerified(url, TV_LAUNCHER_SHA256, fileName);
+    mkdirSync(launcherCacheDir, { recursive: true });
+    writeFileSync(cachedPath, buffer);
+  }
+  writeFileSync(destination, buffer);
+  console.log(`fetch-sidecars: wrote ${destination}`);
+}
+
 async function main() {
   const target = resolveTarget();
   const os = SUPPORTED_TARGETS[target];
@@ -179,6 +222,7 @@ async function main() {
   }
 
   await fetchScrcpyServer();
+  await fetchTvLauncher();
 }
 
 await main();

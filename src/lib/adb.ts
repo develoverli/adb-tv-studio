@@ -41,6 +41,16 @@ export const ADB_ERROR_KINDS = [
   "installFailed",
   "noCapture",
   "save",
+  "notALauncher",
+  "launcherNotApplied",
+  "noCustomLauncher",
+  "notSaved",
+  "invalidTheme",
+  "themeStorage",
+  "launcherMissing",
+  "launcherOutdated",
+  "launcherNotBundled",
+  "launcherSignatureMismatch",
   "command",
 ] as const;
 
@@ -90,4 +100,9 @@ export function reconnect(serial: string): Promise<ConnectStatus> {
 
 export function disconnect(serial: string): Promise<void> {
   return invoke<void>("adb_disconnect", { serial });
+}
+
+/** Removes a saved TV (and disconnects it). */
+export function forget(serial: string): Promise<void> {
+  return invoke<void>("adb_forget", { serial });
 }

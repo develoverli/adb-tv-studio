@@ -1,15 +1,9 @@
 import { useParams } from "@solidjs/router";
-import Palette from "lucide-solid/icons/palette";
 import { Show } from "solid-js";
-import { EmptyState } from "../../components/EmptyState";
-import { Pill } from "../../components/Pill";
 import { t } from "../../i18n";
 import { findDevice } from "../../lib/devices";
+import { LauncherSection } from "./LauncherSection";
 import styles from "./sections.module.css";
-
-function InDevelopment() {
-  return <Pill>{t("common.inDevelopment")}</Pill>;
-}
 
 export function Overview() {
   const params = useParams<{ id: string }>();
@@ -38,19 +32,9 @@ export function Overview() {
               <dd>{t(`status.${current().status}`)}</dd>
             </div>
           </dl>
+          <LauncherSection serial={current().id} connected={current().status === "connected"} />
         </section>
       )}
     </Show>
-  );
-}
-
-export function Themes() {
-  return (
-    <EmptyState
-      icon={<Palette />}
-      badge={<InDevelopment />}
-      title={t("sections.themesTitle")}
-      body={t("sections.themesBody")}
-    />
   );
 }

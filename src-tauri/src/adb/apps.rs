@@ -2,7 +2,7 @@
 //! (cached per version), and run actions (open, force stop, clear data, uninstall, disable).
 
 use super::apps_parse::{self, PackageEntry};
-use super::{AdbError, AdbState, run};
+use super::{AdbError, AdbState, launcher, run};
 use apk_info::Apk;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -25,6 +25,10 @@ pub struct AppDetails {
 }
 
 /// One installed package. Serialized to `AppEntry` in `src/lib/apps.ts`.
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "independent package flags, mirrored one to one by the frontend"
+)]
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppEntry {
@@ -34,6 +38,8 @@ pub struct AppEntry {
     pub disabled: bool,
     /// Shown by the TV launcher; only these get a name and image.
     pub launcher: bool,
+    /// Can be the default launcher.
+    pub home: bool,
     /// Cached details, when this version was read before.
     pub details: Option<AppDetails>,
 }
@@ -48,6 +54,8 @@ pub enum AppAction {
     Uninstall,
     Disable,
     Enable,
+    /// Make it the default launcher.
+    SetHome,
 }
 
 fn cache_dir(app: &AppHandle) -> Result<PathBuf, AdbError> {
@@ -100,6 +108,7 @@ pub async fn apps_list(
                 system: entry.system,
                 disabled: entry.disabled,
                 launcher: entry.launcher,
+                home: entry.home,
                 details,
             }
         })
@@ -260,6 +269,7 @@ pub async fn apps_action(
             run_action(&app, &shell(&["pm", "disable-user", "--user", "0"])).await
         }
         AppAction::Enable => run_action(&app, &shell(&["pm", "enable"])).await,
+        AppAction::SetHome => launcher::set_home(&app, &serial, package).await,
         AppAction::Uninstall => {
             let system = run(
                 &app,

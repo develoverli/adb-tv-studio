@@ -29,6 +29,27 @@ pub enum AdbError {
     NoCapture,
     /// Writing the saved capture to disk failed.
     Save(String),
+    /// The package has no HOME activity, so it cannot be the launcher.
+    NotALauncher(String),
+    /// Android accepted the launcher change but HOME still opens another one (usually the stock
+    /// launcher overriding it); disabling the stock launcher is the next step.
+    LauncherNotApplied,
+    /// Disabling the stock launcher needs another launcher set first, or the TV would have none.
+    NoCustomLauncher,
+    /// The TV is not saved, so what this app changes on it cannot be recorded for undoing later.
+    NotSaved,
+    /// A theme file or zip does not follow the theme contract; says what is wrong.
+    InvalidTheme(String),
+    /// Reading or writing themes on this computer failed.
+    ThemeStorage(String),
+    /// tv-launcher is not installed on the TV.
+    LauncherMissing,
+    /// The installed tv-launcher is too old to read themes.
+    LauncherOutdated,
+    /// This build of the app does not include the tv-launcher APK.
+    LauncherNotBundled,
+    /// The TV has tv-launcher signed with another key, so it cannot be updated in place.
+    LauncherSignatureMismatch,
     /// Any other adb command failure.
     Command(String),
 }
@@ -48,6 +69,21 @@ impl fmt::Display for AdbError {
             Self::InstallFailed(code) => write!(formatter, "install failed: {code}"),
             Self::NoCapture => write!(formatter, "no screen capture to save"),
             Self::Save(message) => write!(formatter, "could not save the capture: {message}"),
+            Self::NotALauncher(package) => write!(formatter, "{package} cannot be the launcher"),
+            Self::LauncherNotApplied => write!(formatter, "HOME still opens another launcher"),
+            Self::NoCustomLauncher => write!(formatter, "set another launcher first"),
+            Self::NotSaved => write!(formatter, "the TV is not saved"),
+            Self::InvalidTheme(problem) => write!(formatter, "invalid theme: {problem}"),
+            Self::ThemeStorage(message) => write!(formatter, "theme storage failed: {message}"),
+            Self::LauncherMissing => write!(formatter, "tv-launcher is not installed"),
+            Self::LauncherOutdated => write!(formatter, "tv-launcher is too old for themes"),
+            Self::LauncherNotBundled => write!(formatter, "this build has no tv-launcher APK"),
+            Self::LauncherSignatureMismatch => {
+                write!(
+                    formatter,
+                    "tv-launcher on the TV is signed with another key"
+                )
+            }
             Self::Command(message) => write!(formatter, "adb failed: {message}"),
         }
     }

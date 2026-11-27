@@ -1,7 +1,9 @@
 //! Keeps the device list live with a long-running `adb track-devices` and emits `devices-changed`.
 
 use super::parse::{self, DeviceInfo, DeviceStatus, FrameDecoder};
+use super::saved;
 use super::{AdbError, AdbState, Device, run, sidecar};
+use std::collections::HashSet;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_shell::process::CommandEvent;
@@ -60,6 +62,23 @@ fn refresh(app: &AppHandle, frame: &str) {
         .filter(|(serial, _)| parse::is_network_serial(serial))
         .collect();
 
+    let was_connected: HashSet<String> = state
+        .entries()
+        .iter()
+        .filter(|(_, status)| *status == DeviceStatus::Connected)
+        .map(|(serial, _)| serial.clone())
+        .collect();
+    // TVs that connected again since the last frame and whose info is already known.
+    let reconnected: Vec<(String, DeviceInfo)> = {
+        let info = state.info();
+        entries
+            .iter()
+            .filter(|(serial, status)| {
+                *status == DeviceStatus::Connected && !was_connected.contains(serial)
+            })
+            .filter_map(|(serial, _)| info.get(serial).map(|info| (serial.clone(), info.clone())))
+            .collect()
+    };
     let to_read: Vec<String> = {
         let info = state.info();
         let mut pending = state.pending();
@@ -73,6 +92,7 @@ fn refresh(app: &AppHandle, frame: &str) {
             .collect()
     };
     *state.entries() = entries;
+    remember(&state, &reconnected);
     emit_devices(app);
 
     for serial in to_read {
@@ -82,6 +102,7 @@ fn refresh(app: &AppHandle, frame: &str) {
             let state = app.state::<AdbState>();
             state.pending().remove(&serial);
             if let Some(info) = info {
+                remember(&state, &[(serial.clone(), info.clone())]);
                 state.info().insert(serial, info);
                 emit_devices(&app);
             }
@@ -93,16 +114,33 @@ fn refresh(app: &AppHandle, frame: &str) {
 ///
 /// The `devices` lock is held through the emit, so concurrent callers (tracker and info reads)
 /// emit in the same order they build, and an older list never arrives after a newer one.
-fn emit_devices(app: &AppHandle) {
+pub(super) fn emit_devices(app: &AppHandle) {
     let state = app.state::<AdbState>();
     let mut current = state.devices();
     let devices: Vec<Device> = {
         let entries = state.entries();
         let info = state.info();
-        entries
+        let saved = state.saved();
+        let mut devices: Vec<Device> = entries
             .iter()
-            .map(|(serial, status)| to_device(serial, *status, info.get(serial)))
-            .collect()
+            .map(|(serial, status)| {
+                let tv = saved.find(serial);
+                // Until the fresh read arrives, a saved TV shows what was read last time.
+                let known = info
+                    .get(serial)
+                    .cloned()
+                    .or_else(|| tv.map(saved::SavedTv::info));
+                to_device(serial, *status, known.as_ref(), tv.is_some())
+            })
+            .collect();
+        devices.extend(
+            saved
+                .list()
+                .iter()
+                .filter(|tv| !entries.iter().any(|(serial, _)| *serial == tv.address))
+                .map(|tv| to_device(&tv.address, DeviceStatus::Offline, Some(&tv.info()), true)),
+        );
+        devices
     };
     current.clone_from(&devices);
     if let Err(error) = app.emit(DEVICES_CHANGED, devices) {
@@ -130,7 +168,7 @@ async fn read_info(app: &AppHandle, serial: &str) -> Option<DeviceInfo> {
 }
 
 /// Builds the frontend device. Name falls back to "Manufacturer Model", then to the address.
-fn to_device(serial: &str, status: DeviceStatus, info: Option<&DeviceInfo>) -> Device {
+fn to_device(serial: &str, status: DeviceStatus, info: Option<&DeviceInfo>, saved: bool) -> Device {
     let info = info.cloned().unwrap_or_default();
     let name = info
         .name
@@ -148,5 +186,23 @@ fn to_device(serial: &str, status: DeviceStatus, info: Option<&DeviceInfo>) -> D
         model: info.model,
         android_version: info.android_version,
         status,
+        saved,
     }
+}
+
+/// Saves TVs that just connected. Only `ip:port` serials: that is the address reconnected later.
+fn remember(state: &AdbState, connected: &[(String, DeviceInfo)]) {
+    let savable: Vec<&(String, DeviceInfo)> = connected
+        .iter()
+        .filter(|(serial, _)| parse::address(serial, None).is_ok())
+        .collect();
+    if savable.is_empty() {
+        return;
+    }
+    let now = saved::now();
+    let mut tvs = state.saved();
+    for (serial, info) in savable {
+        tvs.remember(serial, info, now);
+    }
+    tvs.save_or_report();
 }

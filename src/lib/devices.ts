@@ -16,6 +16,8 @@ export interface Device {
   androidVersion: string | null;
   address: string;
   status: DeviceStatus;
+  /** Remembered across launches: listed while offline and reconnected automatically. */
+  saved: boolean;
 }
 
 /**

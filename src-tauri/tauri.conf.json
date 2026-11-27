@@ -22,7 +22,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; img-src 'self' asset: data: blob:; style-src 'self' 'unsafe-inline'"
+      "csp": "default-src 'self'; img-src 'self' asset: data: blob:; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost https://raw.githubusercontent.com"
     }
   },
   "bundle": {
@@ -32,7 +32,9 @@
     "externalBin": ["binaries/adb"],
     "resources": {
       "binaries/scrcpy-server.jar": "scrcpy-server.jar",
-      "../THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md"
+      "../THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md",
+      "themes/": "themes/",
+      "launcher/": "launcher/"
     },
     "license": "MIT",
     "licenseFile": "../LICENSE",

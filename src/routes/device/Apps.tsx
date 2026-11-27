@@ -3,6 +3,7 @@ import Ban from "lucide-solid/icons/ban";
 import CircleCheck from "lucide-solid/icons/circle-check";
 import CircleStop from "lucide-solid/icons/circle-stop";
 import Eraser from "lucide-solid/icons/eraser";
+import House from "lucide-solid/icons/house";
 import LoaderCircle from "lucide-solid/icons/loader-circle";
 import Package from "lucide-solid/icons/package";
 import Play from "lucide-solid/icons/play";
@@ -284,6 +285,9 @@ function AppPanel(props: AppPanelProps) {
       <div class={styles.actions}>
         {actionButton("open", <Play />, t("apps.open"))}
         {actionButton("forceStop", <CircleStop />, t("apps.forceStop"))}
+        <Show when={props.app.home && !props.app.disabled}>
+          {actionButton("setHome", <House />, t("apps.setHome"))}
+        </Show>
         <Show
           when={props.app.disabled}
           fallback={actionButton("disable", <Ban />, t("apps.disable"))}

@@ -11,17 +11,25 @@ const SECTION_ALL: &str = "#all";
 const SECTION_SYSTEM: &str = "#system";
 const SECTION_DISABLED: &str = "#disabled";
 const SECTION_LAUNCHER: &str = "#launcher";
+const SECTION_HOME: &str = "#home";
 
 /// One shell round trip for the whole list: every package with its version code, the system and
-/// disabled subsets, and the activities the TV launcher (or a phone launcher) shows.
+/// disabled subsets, the activities the TV launcher (or a phone launcher) shows, and the apps that
+/// can be the launcher themselves (HOME).
 pub const LIST_SCRIPT: &str = "echo '#all'; pm list packages --show-versioncode; \
 echo '#system'; pm list packages -s; \
 echo '#disabled'; pm list packages -d; \
 echo '#launcher'; \
 cmd package query-activities --brief -a android.intent.action.MAIN -c android.intent.category.LEANBACK_LAUNCHER; \
-cmd package query-activities --brief -a android.intent.action.MAIN -c android.intent.category.LAUNCHER";
+cmd package query-activities --brief -a android.intent.action.MAIN -c android.intent.category.LAUNCHER; \
+echo '#home'; \
+cmd package query-activities --brief -a android.intent.action.MAIN -c android.intent.category.HOME";
 
 /// A package as listed by [`LIST_SCRIPT`].
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "independent package flags, mirrored one to one by the frontend"
+)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageEntry {
     pub package: String,
@@ -29,6 +37,8 @@ pub struct PackageEntry {
     pub system: bool,
     pub disabled: bool,
     pub launcher: bool,
+    /// Can be the default launcher (has a HOME activity).
+    pub home: bool,
 }
 
 /// Validates an Android package name (`com.example.app`). Also keeps it safe as a shell word and a file name.
@@ -62,6 +72,7 @@ pub fn package_list(output: &str) -> Vec<PackageEntry> {
     let mut system = HashSet::new();
     let mut disabled = HashSet::new();
     let mut launcher = HashSet::new();
+    let mut home = HashSet::new();
 
     for line in output.lines().map(str::trim) {
         if line.starts_with('#') {
@@ -99,13 +110,18 @@ pub fn package_list(output: &str) -> Vec<PackageEntry> {
                     target.insert(package.to_owned());
                 }
             }
-            SECTION_LAUNCHER => {
+            SECTION_LAUNCHER | SECTION_HOME => {
+                let target = if section == SECTION_HOME {
+                    &mut home
+                } else {
+                    &mut launcher
+                };
                 // `--brief` prints "package/activity" lines between "priority=..." lines.
                 for token in line.split_whitespace() {
                     if let Some((package, _)) = token.split_once('/')
                         && package_name(package).is_ok()
                     {
-                        launcher.insert(package.to_owned());
+                        target.insert(package.to_owned());
                     }
                 }
             }
@@ -119,6 +135,7 @@ pub fn package_list(output: &str) -> Vec<PackageEntry> {
             system: system.contains(&package),
             disabled: disabled.contains(&package),
             launcher: launcher.contains(&package),
+            home: home.contains(&package),
             package,
             version_code,
         })
@@ -226,7 +243,10 @@ package:com.netflix.ninja\n\
 package:com.example.disabled\n\
 #launcher\n\
 priority=0 preferredOrder=0 match=0x108000 specificIndex=-1 isDefault=false\n\
-  com.netflix.ninja/.MainActivity\n";
+  com.netflix.ninja/.MainActivity\n\
+#home\n\
+priority=0 preferredOrder=0 match=0x108000 specificIndex=-1 isDefault=false\n\
+  com.example.disabled/.Home\n";
 
     #[test]
     fn package_list_should_merge_sections() {
@@ -242,7 +262,18 @@ priority=0 preferredOrder=0 match=0x108000 specificIndex=-1 isDefault=false\n\
                 system: true,
                 disabled: false,
                 launcher: true,
+                home: false,
             })
+        );
+    }
+
+    #[test]
+    fn package_list_should_mark_home_apps() {
+        let entries = package_list(LIST_OUTPUT);
+        assert!(
+            entries
+                .iter()
+                .any(|entry| entry.package == "com.example.disabled" && entry.home)
         );
     }
 
