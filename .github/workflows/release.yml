@@ -3,6 +3,13 @@ name: Release
 on:
   push:
     branches: [main]
+  # Rebuilds the installers of an existing release (e.g. after deleting broken assets):
+  #   gh workflow run release.yml -f tag=v0.1.2
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to rebuild, e.g. v0.1.2"
+        required: true
 
 permissions:
   contents: write
@@ -11,6 +18,7 @@ permissions:
 jobs:
   release-please:
     name: Release Please
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     # Fully automatic: a push with releasable commits (feat, fix, ...) opens the release PR,
     # this job merges it right away and a second release-please run tags and publishes it.
@@ -43,10 +51,44 @@ jobs:
           manifest-file: .release-please-manifest.json
           skip-github-pull-request: true
 
+  # Decides what to build: the release just created by a push, or the tag given by hand.
+  target:
+    name: Target
+    needs: release-please
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    outputs:
+      build: ${{ steps.pick.outputs.build }}
+      tag: ${{ steps.pick.outputs.tag }}
+      release_id: ${{ steps.pick.outputs.release_id }}
+    steps:
+      - id: pick
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+          CREATED: ${{ needs.release-please.outputs.release_created }}
+          CREATED_TAG: ${{ needs.release-please.outputs.tag_name }}
+          CREATED_ID: ${{ needs.release-please.outputs.release_id }}
+        run: |
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            if ! printf '%s' "$INPUT_TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+              echo "tag must look like v1.2.3" >&2
+              exit 1
+            fi
+            id=$(gh api "repos/$REPO/releases/tags/$INPUT_TAG" --jq .id)
+            { echo "build=true"; echo "tag=$INPUT_TAG"; echo "release_id=$id"; } >> "$GITHUB_OUTPUT"
+          elif [ "$CREATED" = "true" ]; then
+            { echo "build=true"; echo "tag=$CREATED_TAG"; echo "release_id=$CREATED_ID"; } >> "$GITHUB_OUTPUT"
+          else
+            echo "build=false" >> "$GITHUB_OUTPUT"
+          fi
+
   build:
     name: Build (${{ matrix.target }})
-    needs: release-please
-    if: needs.release-please.outputs.release_created == 'true'
+    needs: target
+    if: needs.target.outputs.build == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -61,7 +103,11 @@ jobs:
             target: x86_64-unknown-linux-gnu
     runs-on: ${{ matrix.os }}
     steps:
+      # The release tag, not the pushed commit: the version bump lands in the release PR merged
+      # after the push, so the pushed commit still carries the previous version.
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.target.outputs.tag }}
 
       - name: Install Linux system dependencies
         if: runner.os == 'Linux'
@@ -96,6 +142,6 @@ jobs:
         with:
           # Upload by release ID, not tagName: with tagName, tauri-action v1 rewrites the
           # existing release's name/body and would wipe the release-please changelog.
-          releaseId: ${{ needs.release-please.outputs.release_id }}
+          releaseId: ${{ needs.target.outputs.release_id }}
           uploadUpdaterJson: true
           args: --target ${{ matrix.target }}
