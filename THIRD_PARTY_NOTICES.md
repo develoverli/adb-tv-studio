@@ -30,3 +30,9 @@ limitations under the License.
 - Version: 37.0.3
 - Source: https://developer.android.com/tools/releases/platform-tools
 - License: Android Software Development Kit License, https://developer.android.com/studio/terms
+
+## tv-launcher
+
+- Version: 1.1.0
+- Source: https://github.com/develoverli/tv-launcher
+- License: MIT. Includes the Outfit font (SIL Open Font License 1.1).
