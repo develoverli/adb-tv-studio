@@ -1,6 +1,6 @@
 {
   "name": "adb-tv-studio",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "Open-source desktop app to discover, connect to and manage Android TV devices over ADB.",
   "type": "module",
