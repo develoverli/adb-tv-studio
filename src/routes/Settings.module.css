@@ -67,3 +67,75 @@
 .link:hover svg {
   transform: translate(2px, -2px);
 }
+
+.updates {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-bottom: var(--space-3);
+}
+
+.updatesBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.updatesStatus {
+  color: var(--text-secondary);
+}
+
+.updatesStatus:empty {
+  display: none;
+}
+
+.progress {
+  width: 100%;
+  max-width: 420px;
+  height: 6px;
+  accent-color: var(--accent);
+}
+
+.notes {
+  max-width: 65ch;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.notesTitle {
+  margin-bottom: var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+/* Release notes come as Markdown text; shown as-is, never parsed into HTML. */
+.notesBody {
+  max-height: 220px;
+  overflow-y: auto;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.spin {
+  animation: spin 900ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spin {
+    animation: none;
+  }
+}

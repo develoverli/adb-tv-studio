@@ -1,10 +1,12 @@
 import { A } from "@solidjs/router";
 import Plus from "lucide-solid/icons/plus";
+import ArrowDownToLine from "lucide-solid/icons/arrow-down-to-line";
 import Settings from "lucide-solid/icons/settings";
 import { For, Show } from "solid-js";
 import { t } from "../i18n";
 import { devices } from "../lib/devices";
 import { isMac } from "../lib/platform";
+import { availableUpdate } from "../lib/updates";
 import { Logo } from "./Logo";
 import styles from "./Sidebar.module.css";
 import { StatusDot } from "./StatusDot";
@@ -52,6 +54,17 @@ export function Sidebar() {
       </div>
 
       <div class={styles.footer}>
+        <Show when={availableUpdate()}>
+          {(update) => (
+            <A href="/settings" class={`${styles.item} ${styles.update}`}>
+              <ArrowDownToLine class={styles.icon} />
+              <span class={styles.itemText}>
+                <span class={styles.itemName}>{t("updates.sidebarTitle")}</span>
+                <span class={styles.itemMeta}>{t("updates.sidebarVersion", { version: update().version })}</span>
+              </span>
+            </A>
+          )}
+        </Show>
         <A href="/settings" class={styles.item} activeClass={styles.itemActive}>
           <Settings class={styles.icon} />
           <span>{t("sidebar.settings")}</span>

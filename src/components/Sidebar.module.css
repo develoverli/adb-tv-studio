@@ -130,3 +130,15 @@
   padding: var(--space-3);
   border-top: 1px solid var(--border);
 }
+
+/* New version available: the one accent in the sidebar, so it is noticed without a popup. */
+.update,
+.update:hover {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.update .itemMeta {
+  color: var(--accent-text);
+  opacity: 0.8;
+}

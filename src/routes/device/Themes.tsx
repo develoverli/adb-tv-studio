@@ -5,13 +5,15 @@ import FolderOpen from "lucide-solid/icons/folder-open";
 import LoaderCircle from "lucide-solid/icons/loader-circle";
 import RotateCcw from "lucide-solid/icons/rotate-ccw";
 import Trash from "lucide-solid/icons/trash";
-import { For, Show, createResource, createSignal, onCleanup, onMount } from "solid-js";
+import { For, Show, createEffect, createResource, createSignal, onCleanup, onMount } from "solid-js";
 import { Button } from "../../components/Button";
 import { confirmAction } from "../../components/ConfirmDialog";
 import { Pill } from "../../components/Pill";
-import { ThemePreview } from "../../components/ThemePreview";
+import { type PreviewApp, ThemePreview } from "../../components/ThemePreview";
 import { t } from "../../i18n";
 import { describeError, isAdbError } from "../../lib/adb";
+import { appName } from "../../lib/apps";
+import { appsState, ensureApps } from "../../lib/appsStore";
 import { findDevice } from "../../lib/devices";
 import {
   type CatalogTheme,
@@ -31,6 +33,7 @@ import {
   themeImage,
 } from "../../lib/themes";
 import styles from "./Themes.module.css";
+import { ThemeViewer } from "./ThemeViewer";
 import { TvLauncherSetup } from "./TvLauncherSetup";
 
 interface Feedback {
@@ -62,6 +65,20 @@ export function Themes() {
   const [busy, setBusy] = createSignal<string | null>(null);
   const [feedback, setFeedback] = createSignal<Feedback | null>(null);
   const [dragging, setDragging] = createSignal(false);
+  /** Theme open in the large viewer: a local one by id, or a catalog entry. */
+  const [viewing, setViewing] = createSignal<{ kind: "local"; id: string } | { kind: "catalog"; id: string } | null>(null);
+
+  // Previews use the TV's own apps (names and banners, as the Apps tab reads them).
+  createEffect(() => {
+    if (connected()) ensureApps(params.id);
+  });
+  const previewApps = (): PreviewApp[] => {
+    const state = appsState(params.id);
+    return (state.apps ?? [])
+      .filter((app) => app.launcher && !app.disabled)
+      .map((app) => ({ label: appName(app), image: state.icons[app.package] }))
+      .filter((app) => app.image !== undefined);
+  };
 
   const installed = () => status()?.installed === true;
   const supportsThemes = () => status()?.supportsThemes === true;
@@ -241,7 +258,14 @@ export function Themes() {
         <For each={watchThemes()}>
           {(entry) => (
             <li class={styles.tile}>
-              <ThemePreview theme={entry.theme} image={images()[entry.theme.id]} />
+              <button
+                type="button"
+                class={styles.previewButton}
+                onClick={() => setViewing({ kind: "local", id: entry.theme.id })}
+                aria-label={t("themes.view", { name: entry.theme.name })}
+              >
+                <ThemePreview theme={entry.theme} image={images()[entry.theme.id]} apps={previewApps()} />
+              </button>
               <div class={styles.tileBody}>
                 <div class={styles.tileText}>
                   <span class={styles.name}>{entry.theme.name}</span>
@@ -308,7 +332,16 @@ export function Themes() {
                         when={catalogThemes()[entry.id]}
                         fallback={<div class={styles.previewPlaceholder} aria-hidden="true" />}
                       >
-                        {(theme) => <ThemePreview theme={theme()} />}
+                        {(theme) => (
+                          <button
+                            type="button"
+                            class={styles.previewButton}
+                            onClick={() => setViewing({ kind: "catalog", id: entry.id })}
+                            aria-label={t("themes.view", { name: entry.name })}
+                          >
+                            <ThemePreview theme={theme()} apps={previewApps()} />
+                          </button>
+                        )}
                       </Show>
                       <div class={styles.tileBody}>
                         <div class={styles.tileText}>
@@ -343,6 +376,51 @@ export function Themes() {
             </ul>
           </Show>
         </Show>
+      </Show>
+
+      <Show when={viewing()}>
+        {(open) => {
+          const local = () => (open().kind === "local" ? owned(open().id) : undefined);
+          const catalogEntry = () => (open().kind === "catalog" ? catalog()?.find((entry) => entry.id === open().id) : undefined);
+          const theme = () => local()?.theme ?? catalogThemes()[open().id];
+          return (
+            <Show when={theme()}>
+              {(shown) => (
+                <ThemeViewer
+                  theme={shown()}
+                  image={images()[shown().id]}
+                  apps={previewApps()}
+                  meta={meta(shown())}
+                  onClose={() => setViewing(null)}
+                  actions={
+                    <Show
+                      when={local()}
+                      fallback={
+                        <Show when={catalogEntry()}>
+                          {(entry) => (
+                            <Button variant="primary" onClick={() => download(entry())} disabled={busy() !== null}>
+                              <Show when={spinnerFor(`download:${entry().id}`)} fallback={<Download />}>
+                                <LoaderCircle class={styles.spin} />
+                              </Show>
+                              {owned(entry().id) ? t("themes.update") : t("themes.download")}
+                            </Button>
+                          )}
+                        </Show>
+                      }
+                    >
+                      <Button variant="primary" onClick={() => apply(shown().id)} disabled={!canApply()}>
+                        <Show when={spinnerFor(`apply:${shown().id}`)}>
+                          <LoaderCircle class={styles.spin} />
+                        </Show>
+                        {activeId() === shown().id ? t("themes.reapply") : t("themes.apply")}
+                      </Button>
+                    </Show>
+                  }
+                />
+              )}
+            </Show>
+          );
+        }}
       </Show>
     </section>
   );

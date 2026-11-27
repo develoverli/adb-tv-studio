@@ -57,9 +57,9 @@ const SCRCPY_SHA256 = "764eb6f79811d5211fe9df341120882ba9994c7a61b897d7bf3fb662e
  * tv-launcher release bundled with the app. Bump both after publishing a tv-launcher release
  * (its .sha256 asset has the checksum). The app requires versionCode 2+ for themes.
  */
-const TV_LAUNCHER_VERSION = "1.1.0";
+const TV_LAUNCHER_VERSION = "1.1.1";
 /** From the release's .sha256 asset. Set to null to build without tv-launcher. */
-const TV_LAUNCHER_SHA256 = "44776f121cc8a84b8df7648a65b043c1d13c5d72f690baa97c222d0191b66c9f";
+const TV_LAUNCHER_SHA256 = "d46ba787a54f9122b59c266e0f8c276ecff37263337088ac2461b4a6959ba168";
 
 const SUPPORTED_TARGETS = {
   "x86_64-pc-windows-msvc": "win",

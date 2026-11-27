@@ -2,7 +2,8 @@ import KeyRound from "lucide-solid/icons/key-round";
 import LoaderCircle from "lucide-solid/icons/loader-circle";
 import Radar from "lucide-solid/icons/radar";
 import TextCursorInput from "lucide-solid/icons/text-cursor-input";
-import { For, type JSX, Show, createRoot, createSignal } from "solid-js";
+import { useNavigate } from "@solidjs/router";
+import { For, type JSX, Show, createEffect, createRoot, createSignal, onCleanup } from "solid-js";
 import { Button } from "../components/Button";
 import { Pill } from "../components/Pill";
 import { t } from "../i18n";
@@ -16,7 +17,7 @@ import {
   pair,
   scan,
 } from "../lib/adb";
-import { devices } from "../lib/devices";
+import { devices, findDevice } from "../lib/devices";
 import styles from "./AddDevice.module.css";
 import page from "./Page.module.css";
 
@@ -42,10 +43,23 @@ const KIND_LABEL: Record<DiscoveryKind, () => string> = {
   network: () => t("add.kindNetwork"),
 };
 
+/** Feedback for a connect result; a connected TV is also opened on its Overview. */
 function connectFeedback(status: ConnectStatus, address: string): Feedback {
+  if (status === "connected") saved.setOpenTarget(serialOf(address));
   return status === "connected"
     ? { tone: "success", text: t("add.connected", { address }) }
     : { tone: "warning", text: t("add.unauthorized") };
+}
+
+/** Port adb adds when an address is typed without one (same default as `adb_connect`). */
+const DEFAULT_PORT = "5555";
+/** How long to wait for a just-connected TV to show up in the list before giving up on opening it. */
+const OPEN_TIMEOUT_MS = 10_000;
+
+/** adb serial for an address: `host:port`, with the default port when none was typed. */
+function serialOf(address: string): string {
+  const trimmed = address.trim();
+  return trimmed.includes(":") ? trimmed : `${trimmed}:${DEFAULT_PORT}`;
 }
 
 function isAdded(address: string): boolean {
@@ -67,7 +81,11 @@ const saved = createRoot(() => {
   const [manualAddress, setManualAddress] = createSignal("");
   const [manualPending, setManualPending] = createSignal(false);
   const [manualFeedback, setManualFeedback] = createSignal<Feedback | null>(null);
+  /** TV to open once it appears connected in the list (set by a successful connect). */
+  const [openTarget, setOpenTarget] = createSignal<string | null>(null);
   return {
+    openTarget,
+    setOpenTarget,
     pairAddress,
     setPairAddress,
     scanning,
@@ -93,7 +111,24 @@ const saved = createRoot(() => {
 
 export function AddDevice() {
   const { pairAddress, setPairAddress } = saved;
+  const navigate = useNavigate();
   let pairCodeInput: HTMLInputElement | undefined;
+
+  // The device list updates a moment after `adb connect` returns: open the TV once it is listed
+  // as connected, or give up quietly after a while (the success message stays either way).
+  createEffect(() => {
+    const target = saved.openTarget();
+    if (!target) return;
+    if (findDevice(target)?.status === "connected") {
+      saved.setOpenTarget(null);
+      navigate(`/device/${target}`);
+      return;
+    }
+    const timer = window.setTimeout(() => saved.setOpenTarget(null), OPEN_TIMEOUT_MS);
+    onCleanup(() => window.clearTimeout(timer));
+  });
+  // Leaving the screen cancels it: coming back later must not jump to that TV.
+  onCleanup(() => saved.setOpenTarget(null));
 
   const usePairing = (address: string) => {
     setPairAddress(address);

@@ -33,6 +33,6 @@ limitations under the License.
 
 ## tv-launcher
 
-- Version: 1.1.0
+- Version: 1.1.1
 - Source: https://github.com/develoverli/tv-launcher
 - License: MIT. Includes the Outfit font (SIL Open Font License 1.1).

@@ -1,121 +1,132 @@
-/* Miniature home screen. Sizes are percentages of the 16:9 frame so it scales with its tile. */
-.preview {
+/* The frame keeps 16:9; the canvas inside is 960×540 "dp" and scaled to the frame width in JS. */
+.frame {
   position: relative;
   aspect-ratio: 16 / 9;
   overflow: hidden;
   border-radius: var(--radius-md);
-  font-size: 7px;
+  background: #000;
+}
+
+.canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: hidden;
+  transform-origin: top left;
   line-height: 1;
   isolation: isolate;
 }
 
-.glow,
-.backdrop {
+.layer {
   position: absolute;
   inset: 0;
-  z-index: -1;
+  background-position: center;
+  background-size: cover;
 }
 
 .backdrop {
-  inset: 0 0 45% 0;
-  opacity: 0.55;
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  overflow: hidden;
 }
 
-.header {
+.backdropImage {
   position: absolute;
-  top: 6%;
-  right: 5%;
-  left: 5%;
+  inset: -16px;
+  background-position: center;
+  background-size: cover;
+  filter: blur(8px);
+  opacity: 0.6;
+}
+
+.info {
+  position: absolute;
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.greeting {
+  margin-left: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+}
+
+.clockRow {
+  display: flex;
+  gap: 16px;
 }
 
 .clock {
-  font-size: 11px;
-  font-weight: 300;
-}
-
-.bigClock {
-  font-size: 30px;
-  font-weight: 300;
-}
-
-.minimalClock {
-  position: absolute;
-  top: 20%;
-  right: 0;
-  left: 0;
   display: flex;
-  justify-content: center;
+  align-items: baseline;
+  gap: 6px;
+  font-weight: 300;
+}
+
+.suffix {
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+}
+
+.divider {
+  width: 1px;
+  height: 26px;
+}
+
+.date {
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
 }
 
 .pills {
+  position: absolute;
   display: flex;
-  gap: 3px;
 }
 
 .pill {
-  width: 14px;
-  height: 6px;
-  border: 0.5px solid;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 20px 0 18px;
+  border: 1px solid;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
 }
 
-.title {
+.pill svg {
+  width: 18px;
+  height: 18px;
+}
+
+.heroTitle {
   position: absolute;
-  top: 46%;
-  left: 5%;
-  width: 26%;
-  height: 6%;
-  border-radius: 2px;
-  opacity: 0.9;
+  max-width: 70%;
+  overflow: hidden;
+  font-size: 48px;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.dock,
-.grid,
-.sideGrid {
+.heroClock {
   position: absolute;
-  display: grid;
-  gap: 4%;
-  align-items: start;
-}
-
-.dock {
-  top: 30%;
-  right: 4%;
-  left: 4%;
-  padding: 2.5%;
-  column-gap: 3%;
-}
-
-.dockLow {
-  top: 60%;
-}
-
-.grid {
-  top: 58%;
-  right: 4%;
-  left: 4%;
-  padding: 0 2.5%;
-  column-gap: 3%;
-}
-
-.cell {
+  top: 0;
+  right: 0;
+  left: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-}
-
-.tile {
-  display: block;
-  aspect-ratio: 16 / 9;
-}
-
-.label {
-  width: 70%;
-  height: 2px;
-  margin: 0 auto;
-  border-radius: 1px;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
 }
 
 .sidebar {
@@ -123,21 +134,53 @@
   top: 0;
   bottom: 0;
   left: 0;
+}
+
+.tray {
+  position: absolute;
+  border: 1px solid;
+}
+
+.rows {
+  position: absolute;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  width: 31%;
-  padding: 7% 5%;
 }
 
-.sidebarPills .pills {
+.row {
+  display: flex;
+}
+
+.cell {
+  display: flex;
   flex-direction: column;
+  align-items: stretch;
 }
 
-.sideGrid {
-  top: 9%;
-  right: 4%;
-  left: 35%;
-  column-gap: 5%;
-  row-gap: 9%;
+.card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background-position: center;
+  background-size: cover;
+}
+
+.cardText {
+  padding: 0 10px;
+  color: rgb(255 255 255 / 0.92);
+  font-size: 16px;
+  font-weight: 500;
+  text-align: center;
+}
+
+.cardLabel {
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: center;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 4px rgb(0 0 0 / 0.6);
+  white-space: nowrap;
 }

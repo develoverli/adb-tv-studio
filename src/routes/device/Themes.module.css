@@ -142,3 +142,32 @@
     transition: none;
   }
 }
+
+/* The preview is a button that opens the large viewer. */
+.previewButton {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  cursor: zoom-in;
+  transition: transform var(--dur) var(--ease-out);
+}
+
+.previewButton:hover {
+  transform: translateY(-2px);
+}
+
+.previewButton:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .previewButton,
+  .previewButton:hover {
+    transition: none;
+    transform: none;
+  }
+}
